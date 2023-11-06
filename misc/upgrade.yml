@@ -1,0 +1,18 @@
+---
+- hosts: all
+  become: true
+  tasks:
+  - name: Update the nodes
+    apt:
+      update_cache: yes
+      cache_valid_time: 3600
+
+  - name: Upgrade the nodes
+    apt:
+      upgrade: full
+      autoremove: yes
+
+  - name: Reboot the nodes (and Wait upto 5 mins max)
+    become: true
+    reboot:
+      reboot_timeout: 300

@@ -1,0 +1,145 @@
+---
+- name: Set same timezone on every Server
+  community.general.timezone:
+    name: "{{ system_timezone }}"
+  when: (system_timezone is defined) and (system_timezone != "Your/Timezone")
+
+- name: Set SELinux to disabled state
+  ansible.posix.selinux:
+    state: disabled
+  when: ansible_os_family == "RedHat"
+
+- name: Enable IPv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    reload: yes
+  tags: sysctl
+
+- name: Enable IPv6 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.forwarding
+    value: "1"
+    state: present
+    reload: yes
+  tags: sysctl
+
+- name: Enable IPv6 router advertisements
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.accept_ra
+    value: "2"
+    state: present
+    reload: yes
+  tags: sysctl
+
+- name: Add br_netfilter to /etc/modules-load.d/
+  copy:
+    content: "br_netfilter"
+    dest: /etc/modules-load.d/br_netfilter.conf
+    mode: "u=rw,g=,o="
+  when: ansible_os_family == "RedHat"
+
+- name: Load br_netfilter
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Set bridge-nf-call-iptables (just to be sure)
+  ansible.posix.sysctl:
+    name: "{{ item }}"
+    value: "1"
+    state: present
+    reload: yes
+  when: ansible_os_family == "RedHat"
+  loop:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+  tags: sysctl
+
+- name: Add /usr/local/bin to sudo secure_path
+  lineinfile:
+    line: 'Defaults    secure_path = {{ secure_path[ansible_os_family] }}'
+    regexp: "Defaults(\\s)*secure_path(\\s)*="
+    state: present
+    insertafter: EOF
+    path: /etc/sudoers
+    validate: 'visudo -cf %s'
+  when: ansible_os_family in [ "RedHat", "Suse" ]
+
+- name: Install jq on Debian-based systems
+  ansible.builtin.apt:
+    name: jq
+    state: present
+  when: ansible_os_family in [ "Ubuntu", "Raspbian", "Debian" ]
+
+- name: Install jq on Red Hat-based systems
+  ansible.builtin.yum:
+    name: jq
+    state: present
+  when: ansible_os_family in [ "RedHat", "CentOS", "Rocky" ]
+
+- name: Install jq on OpenSUSE
+  ansible.builtin.zypper:
+    name: jq
+    state: present
+  when: ansible_os_family == "Suse"
+
+- name: Install open-iscsi on Debian-based systems
+  ansible.builtin.apt:
+    name: open-iscsi
+    state: present
+  when: ansible_os_family in [ "Ubuntu", "Raspbian", "Debian" ]
+
+- name: Install open-iscsi on Red Hat-based systems
+  ansible.builtin.yum:
+    name: iscsi-initiator-utils
+    state: present
+  when: ansible_os_family in [ "RedHat", "CentOS", "Rocky" ]
+
+- name: Install open-iscsi on OpenSUSE
+  ansible.builtin.zypper:
+    name: open-iscsi
+    state: present
+  when: ansible_os_family == "Suse"
+
+- name: Install NFSv4 client on Debian-based systems
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+  when: ansible_os_family in [ "Ubuntu", "Raspbian", "Debian" ]
+
+- name: Install NFSv4 client on Red Hat-based systems
+  ansible.builtin.yum:
+    name: nfs-utils
+    state: present
+  when: ansible_os_family in [ "RedHat", "CentOS", "Rocky" ]
+
+- name: Install NFSv4 client on OpenSUSE
+  ansible.builtin.zypper:
+    name: nfs-client
+    state: present
+  when: ansible_os_family == "Suse"
+
+- name: Download environment check script
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/longhorn/longhorn/{{ longhorn_version }}/scripts/environment_check.sh"
+    dest: "/tmp/environment_check.sh"
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Run environment check script
+  command: bash /tmp/environment_check.sh
+  register: environment_check_output
+
+- name: Fail if environment check fails
+  fail:
+    msg: "Environment check failed: {{ environment_check_output.stderr }}"
+  when: environment_check_output.rc != 0
+
+- name: Delete environment check script
+  ansible.builtin.file:
+    path: /tmp/environment_check.sh
+    state: absent
