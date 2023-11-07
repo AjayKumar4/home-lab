@@ -121,25 +121,3 @@
     name: nfs-client
     state: present
   when: ansible_os_family == "Suse"
-
-- name: Download environment check script
-  ansible.builtin.get_url:
-    url: "https://raw.githubusercontent.com/longhorn/longhorn/{{ longhorn_version }}/scripts/environment_check.sh"
-    dest: "/tmp/environment_check.sh"
-    owner: root
-    group: root
-    mode: 0755
-
-- name: Run environment check script
-  command: bash /tmp/environment_check.sh
-  register: environment_check_output
-
-- name: Fail if environment check fails
-  fail:
-    msg: "Environment check failed: {{ environment_check_output.stderr }}"
-  when: environment_check_output.rc != 0
-
-- name: Delete environment check script
-  ansible.builtin.file:
-    path: /tmp/environment_check.sh
-    state: absent

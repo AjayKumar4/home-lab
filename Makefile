@@ -12,12 +12,10 @@ ANSIBLE_GALAXY := $(shell command -v ansible-galaxy 2>/dev/null || echo "ansible
 k3s-prerequisite: 
 	$(ANSIBLE_GALAXY) collection install -r ./k3s/collections/requirements.yml
 
-k3s-setup: 
-	k3s-prerequisite
+k3s-setup: k3s-prerequisite
 	$(ANSIBLE) ./k3s/site.yml -i ./inventory/home-lab/hosts.ini
 
-k3s-delete:
-	k3s-prerequisite
+k3s-delete: k3s-prerequisite
 	$(ANSIBLE) ./k3s/reset.yml -i ./inventory/home-lab/hosts.ini
 
 restart:
