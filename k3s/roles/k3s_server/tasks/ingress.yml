@@ -10,7 +10,7 @@
 
 - name: "Download to first master: manifest for ingress"
   ansible.builtin.get_url:
-    url: "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-{{ ingress_version }}/deploy/static/provider/cloud/deploy.yaml"  # noqa yaml[line-length]
+    url: "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-{{ ingress_version }}/deploy/static/provider/baremetal/deploy.yaml" 
     dest: "/var/lib/rancher/k3s/server/manifests/ingress.yaml"
     owner: root
     group: root

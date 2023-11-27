@@ -1,5 +1,7 @@
 ---
-- hosts: all
+- name: Upgrade and restart nodes
+  hosts: all
+  gather_facts: yes
   become: true
   tasks:
   - name: Update the nodes
@@ -13,6 +15,5 @@
       autoremove: yes
 
   - name: Reboot the nodes (and Wait upto 5 mins max)
-    become: true
     reboot:
       reboot_timeout: 300

@@ -1,0 +1,53 @@
+# Enabling prometheus metrics and access logs
+# Enable access log
+logs:
+  access:
+    enabled: true
+    format: json
+# This is translated to traefik parameters
+# "--metrics.prometheus=true"
+# "--accesslog"
+# "--accesslog.format=json"
+  
+# Print access log to file instead of stdout
+additionalArguments:
+  - "--metrics.prometheus=true"
+  - "--accesslog"
+  - "--accesslog.format=json"
+  - "--accesslog.filepath=/data/access.log"
+deployment:
+  # Adding access logs sidecar
+  additionalContainers:
+    - name: stream-accesslog
+      image: busybox
+      args:
+      - /bin/sh
+      - -c
+      - tail -n+1 -F /data/access.log
+      imagePullPolicy: Always
+      resources: {}
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+      volumeMounts:
+      - mountPath: /data
+        name: data
+service:
+  spec:
+    # Set load balancer external IP
+    loadBalancerIP: 192.168.1.202
+
+providers:
+  # Enable cross namespace references
+  kubernetesCRD:
+    enabled: true
+    allowCrossNamespace: true
+  # Enable published service
+  kubernetesIngress:
+    publishedService:
+      enabled: true
+
+# Enable prometheus metric service
+metrics:
+  prometheus:
+    service:
+      enabled: true

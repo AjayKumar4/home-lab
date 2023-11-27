@@ -130,7 +130,7 @@ custom_registries_yaml: |
 
 
 # longhorn version
-longhorn_version: "v1.5.1"
+longhorn_version: "v1.5.2"
 longhorn_service_name: "longhorn-frontend"
 longhorn_service_port: "80"
 longhorn_storage: 200Gi
