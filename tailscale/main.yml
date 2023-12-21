@@ -1,0 +1,9 @@
+---
+- name: Install Tailscale 
+  hosts: all
+  become: true
+  gather_facts: yes
+  tasks:
+    - name: Include Tailscale role
+      include_role:
+        name: tailscale

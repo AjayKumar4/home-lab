@@ -1,0 +1,50 @@
+---
+- name: Deploy Rancher UI using Helm
+  hosts: control_plane
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../config.yml
+
+  environment:
+    # The location of the kubeconfig file on the master.
+    K8S_AUTH_KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    PATH: "~/go/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+  - name: Add Rancher Helm repository
+    kubernetes.core.helm_repository:
+      name: rancher
+      repo_url: "https://releases.rancher.com/server-charts/stable"
+      state: present
+    
+  - name: Download helm diff plugin
+    command: "helm repo update"
+    become: true
+
+  - name: Deploy Rancher Helm chart with Traefik Ingress and TLS
+    kubernetes.core.helm:
+      name: rancher
+      chart_ref: rancher/rancher
+      release_namespace: cattle-system
+      create_namespace: true
+      wait: yes
+      timeout: "{{ helm_time_out }}"
+      state: present
+      values:
+        hostname: "{{ rancher_dashboard_domain }}"
+        ingress:
+          enabled: true
+          annotations:
+            traefik.ingress.kubernetes.io/router.entrypoints: websecure
+            traefik.ingress.kubernetes.io/router.tls: "true"
+            # Add any other Traefik Ingress annotations here as needed
+          labels:
+            traefik.enable: "true"
+            traefik.http.routers.rancher.rule: "Host(`{{ rancher_dashboard_domain }}`)"
+            traefik.http.routers.rancher.tls: "true"
+            # Add any other Traefik router labels here as needed
+          tls:
+            - secretName: "{{ rancher_dashboard_domain }}-tls" # Replace with your TLS secret name
+

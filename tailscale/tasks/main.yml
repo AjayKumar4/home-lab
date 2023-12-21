@@ -1,0 +1,19 @@
+---
+- name: Download Tailscale installation script
+  get_url:
+    url: https://tailscale.com/install.sh
+    dest: /tmp/tailscale.sh
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Install Tailscale
+  shell: /tmp/tailscale.sh
+
+- name: Retrieve Tailscale API Key
+  shell: "tailscale up --authkey {{ tailscale_authkey }} --hostname {{ inventory_hostname }} --accept-dns=false"
+
+- name: Delete Tailscale installation script
+  file:
+    path: /tmp/tailscale.sh
+    state: absent

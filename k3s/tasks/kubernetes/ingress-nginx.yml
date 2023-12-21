@@ -1,0 +1,47 @@
+---
+- name: Install Ingress Nginx
+  hosts: control_plane
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../config.yml
+
+  environment:
+    # The location of the kubeconfig file on the master.
+    K8S_AUTH_KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    PATH: "~/go/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+  - name: Add Ingress Nginx Helm repository
+    kubernetes.core.helm_repository:
+      name: ingress-nginx
+      repo_url: "https://kubernetes.github.io/ingress-nginx"
+      state: present
+    
+  - name: Download helm diff plugin
+    command: "helm repo update"
+    become: true
+    
+  - name: Deploy Ingress Nginx Helm chart
+    kubernetes.core.helm:
+      name: ingress-nginx
+      chart_ref: ingress-nginx/ingress-nginx
+      release_namespace: ingress-nginx
+      create_namespace: true
+      wait: yes
+      timeout: "{{ helm_time_out }}"
+      state: present
+      values:
+        service:
+          spec:
+            loadBalancerIP: "{{ ingress_nginx_load_balancer_ip }}"
+        controller:
+          metrics:
+            enabled: true
+        ingressClass:
+          name: ingress-nginx
+        dashboard:
+          enabled: true
+          domain: "{{ ingress_nginx_dashboard_domain }}"
+          port: 80

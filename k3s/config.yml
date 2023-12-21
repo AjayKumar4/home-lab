@@ -1,0 +1,50 @@
+---
+helm_time_out: 5m
+
+storage_type: zfs  # options: 'filesystem', 'zfs'
+storage_zfs_pool_name: zfsdata
+storage_nfs_dir: '{{ storage_zfs_pool_name }}'  # Use this for 'zfs'
+#storage_nfs_dir: "srv"  # Use this for 'filesystem'
+storage_nfs_share_name: nfsshare
+
+network:
+  eth0:
+    ipv4_subnet_prefix: 192.168.1
+    gateway: 192.168.1.254
+    nameservers:
+      - 192.168.1.254
+      - 1.1.1.1
+  wlan0:
+    ipv4_subnet_prefix: 192.168.8
+    gateway: 192.168.8.1
+    nameservers:
+      - 192.168.8.1
+      - 1.1.1.1
+  tailscale:
+    ipv4_subnet_prefix: 100.64.0
+
+tailscale_authkey: "{{ lookup('env', 'TAILSCALE_AUTHKEY') }}"
+tailscale_api_token: "{{ lookup('env', 'TAILSCALE_API_TOKEN') }}"
+
+cloudflare_domain: "ajaykumar.ie"
+cloudflare_email: "n.uajaykumar@gmail.com"
+cloudflare_api_token: "{{ lookup('env', 'CF_API_TOKEN') }}"
+cloudflare_api_key: "{{ lookup('env', 'CF_API_KEY') }}"
+
+k3s_dns_name: "k3s.{{ cloudflare_domain }}"
+k3s_static_ip: "86.43.201.200"
+k3s_token: "aj-home-lab"
+
+# metallb ip range for load balancer
+metal_lb_ip_range: "192.168.1.201-192.168.1.230"
+
+# traefik ip for load balancer
+traefik_load_balancer_ip: "192.168.1.201"
+traefik_dashboard_domain: "traefik.{{ cloudflare_domain }}"
+
+# ingress_nginx ip for load balancer
+ingress_nginx_load_balancer_ip: "192.168.1.202"
+ingress_nginx_dashboard_domain: "ingress-nginx.{{ cloudflare_domain }}"
+
+rancher_dashboard_domain: "rancher.{{ cloudflare_domain }}"
+

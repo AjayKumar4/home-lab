@@ -1,0 +1,61 @@
+---
+- name: Install MetalLB with IP address pool and L2 advertisement
+  hosts: control_plane
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../config.yml
+
+  environment:
+    # The location of the kubeconfig file on the master.
+    K8S_AUTH_KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    PATH: "~/go/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+  - name: Add MetalLB Helm repository
+    kubernetes.core.helm_repository:
+      name: metallb
+      repo_url: "https://metallb.github.io/metallb"
+      state: present
+    
+  - name: Download helm diff plugin
+    command: "helm repo update"
+    become: true
+    
+  - name: Deploy MetalLB Helm chart
+    kubernetes.core.helm:
+      name: metallb
+      chart_ref: metallb/metallb
+      release_namespace: metallb
+      create_namespace: true
+      wait: yes
+      timeout: "{{ helm_time_out }}"
+      state: present
+
+  - name: Apply Metallb address pool
+    kubernetes.core.k8s:
+      state: present
+      definition: |
+        apiVersion: metallb.io/v1beta1
+        kind: IPAddressPool
+        metadata:
+          name: cluster-pool
+          namespace: metallb
+        spec:
+          addresses:
+          - "{{ metal_lb_ip_range }}"
+          
+  - name: Apply L2 configuration
+    kubernetes.core.k8s:
+      state: present
+      definition: |
+        apiVersion: metallb.io/v1beta1
+        kind: L2Advertisement
+        metadata:
+          name: default
+          namespace: metallb
+        spec:
+          ipAddressPools:
+          - cluster-pool
+

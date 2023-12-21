@@ -1,0 +1,9 @@
+---
+- name: Install MicroK8s
+  hosts: all
+  become: true
+  gather_facts: yes
+  tasks:
+    - name: Include MicroK8s role
+      include_role:
+        name: microk8s

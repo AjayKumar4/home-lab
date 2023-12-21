@@ -1,0 +1,106 @@
+---
+- name: Set up static networking configuration.
+  hosts: cluster
+  gather_facts: false
+  become: true
+
+  handlers:
+    - name: apply netplan
+      ansible.builtin.command: netplan apply
+
+  vars_files:
+    - ../../config.yml
+
+  tasks:
+    - name: Install netplan.io package
+      ansible.builtin.apt:
+        name: netplan.io
+        state: present
+
+    - name: Create directory if it doesn't exist
+      ansible.builtin.file:
+        path: /etc/netplan
+        state: directory
+
+    - name: Configure static IP address on each node.
+      ansible.builtin.copy:
+        content: |
+          network:
+            version: 2
+            renderer: NetworkManager
+            ethernets:
+              eth0:
+                dhcp4: no
+                dhcp6: no
+                addresses: [{{ network.eth0.ipv4_subnet_prefix }}.{{ ip_host_octet }}/24]
+                nameservers:
+                  addresses: {{ network.eth0.nameservers }}
+                routes:
+                  - to: 0.0.0.0
+                    via: {{ network.eth0.gateway }}
+            wifis:
+              wlan0:
+                dhcp4: no
+                dhcp6: no
+                addresses: [{{ network.wlan0.ipv4_subnet_prefix }}.{{ ip_host_octet }}/24]
+                nameservers:
+                  addresses: {{ network.wlan0.nameservers }}
+                access-points:
+                  "home-lab":
+                    password: "Friendship@4"
+                  "home-lab_5G":
+                    password: "Friendship@4"
+                routes:
+                  - to: 0.0.0.0
+                    via: {{ network.wlan0.gateway }}
+        dest: /etc/netplan/01-netcfg.yaml
+
+    - name: Set correct permissions for the Netplan configuration file
+      ansible.builtin.file:
+        path: /etc/netplan/01-netcfg.yaml
+        owner: root
+        group: root
+        mode: '0644'
+      notify: apply netplan
+
+    - name: Delete /etc/hosts file
+      ansible.builtin.file:
+        path: /etc/hosts
+        state: absent
+
+    - name: Create /etc/hosts file
+      ansible.builtin.file:
+        path: /etc/hosts
+        state: touch
+        mode: '0664'
+
+    - name: Update /etc/hosts file
+      ansible.builtin.blockinfile:
+        dest: /etc/hosts
+        content: |
+          127.0.0.1	localhost
+          127.0.1.1	{{inventory_hostname}}
+
+          # The following lines are desirable for IPv6 capable hosts
+          ::1     ip6-localhost ip6-loopback
+          fe00::0 ip6-localnet
+          ff00::0 ip6-mcastprefix
+          ff02::1 ip6-allnodes
+          ff02::2 ip6-allrouters
+
+    - name: Update /etc/hosts file
+      ansible.builtin.blockinfile:
+        dest: /etc/hosts
+        marker: "# ANSIBLE MANAGED - static ip config {mark}"
+        content: |
+          {% for host in groups['all'] %}
+          {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
+          {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
+          {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
+          {% endfor %}
+        
+    
+
+
+
+

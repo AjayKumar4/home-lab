@@ -1,0 +1,61 @@
+---
+- name: Install Traefik
+  hosts: control_plane
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../config.yml
+
+  environment:
+    # The location of the kubeconfig file on the master.
+    K8S_AUTH_KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    PATH: "~/go/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+  - name: Add Traefik Helm repository
+    kubernetes.core.helm_repository:
+      name: traefik
+      repo_url: "https://helm.traefik.io/traefik"
+      state: present
+    
+  - name: Download helm diff plugin
+    command: "helm repo update"
+    become: true
+    
+  - name: Deploy Traefik Helm chart
+    kubernetes.core.helm:
+      name: traefik
+      chart_ref: traefik/traefik
+      release_namespace: traefik
+      create_namespace: true
+      wait: yes
+      timeout: "{{ helm_time_out }}"
+      state: present
+      values:
+        additionalArguments:
+          - "--metrics.prometheus=true"
+        metrics:
+          prometheus:
+            service:
+              enabled: true
+        service:
+          spec:
+            # Set load balancer external IP
+            loadBalancerIP: "{{ traefik_load_balancer_ip }}"
+        providers:
+          # Enable cross namespace references
+          kubernetesCRD:
+            enabled: true
+            allowCrossNamespace: true
+          # Enable published service
+          kubernetesIngress:
+            publishedService:
+              enabled: true
+        dashboard:
+          # Enable dashboard access
+          enabled: true
+          # Configure dashboard Ingress
+          ingress:
+            host: "{{ traefik_dashboard_domain }}"
+            path: /dashboard
