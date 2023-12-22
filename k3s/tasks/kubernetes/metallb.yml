@@ -19,16 +19,13 @@
       repo_url: "https://metallb.github.io/metallb"
       state: present
     
-  - name: Download helm diff plugin
-    command: "helm repo update"
-    become: true
-    
   - name: Deploy MetalLB Helm chart
     kubernetes.core.helm:
       name: metallb
       chart_ref: metallb/metallb
       release_namespace: metallb
       create_namespace: true
+      update_repo_cache: true
       wait: yes
       timeout: "{{ helm_time_out }}"
       state: present

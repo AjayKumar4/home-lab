@@ -46,9 +46,4 @@
       command: "{{ helm_bin_path }} plugin install https://github.com/databus23/helm-diff"
       become: true
       when: helm_download is changed
-    
-    - name: Download helm diff plugin
-      command: "{{ helm_bin_path }} repo update"
-      become: true
-      when: helm_download is changed
 

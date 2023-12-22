@@ -19,16 +19,13 @@
       repo_url: "https://kubernetes.github.io/ingress-nginx"
       state: present
     
-  - name: Download helm diff plugin
-    command: "helm repo update"
-    become: true
-    
   - name: Deploy Ingress Nginx Helm chart
     kubernetes.core.helm:
       name: ingress-nginx
       chart_ref: ingress-nginx/ingress-nginx
       release_namespace: ingress-nginx
       create_namespace: true
+      update_repo_cache: true
       wait: yes
       timeout: "{{ helm_time_out }}"
       state: present

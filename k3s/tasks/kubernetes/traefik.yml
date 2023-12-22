@@ -19,16 +19,13 @@
       repo_url: "https://helm.traefik.io/traefik"
       state: present
     
-  - name: Download helm diff plugin
-    command: "helm repo update"
-    become: true
-    
   - name: Deploy Traefik Helm chart
     kubernetes.core.helm:
       name: traefik
       chart_ref: traefik/traefik
       release_namespace: traefik
       create_namespace: true
+      update_repo_cache: true
       wait: yes
       timeout: "{{ helm_time_out }}"
       state: present
@@ -55,7 +52,37 @@
         dashboard:
           # Enable dashboard access
           enabled: true
+          domain: "{{ traefik_dashboard_domain }}"
+          auth:
+            basic:
+              username: "{{ ansible_user }}"
+              password: "{{ ansible_sudo_pass }}"
           # Configure dashboard Ingress
           ingress:
+            enabled: true
+            tls:
+              enabled: true
+              secretName: traefik-secret
             host: "{{ traefik_dashboard_domain }}"
             path: /dashboard
+
+  - name: Create Traefik IngressRoute
+    kubernetes.core.k8s:
+      definition:
+        apiVersion: traefik.containo.us/v1alpha1
+        kind: IngressRoute
+        metadata:
+          name: traefik-dashboard
+          namespace: traefik
+        spec:
+          entryPoints:
+            - websecure
+          routes:
+            - kind: Rule
+              match: "Host(`{{ traefik_dashboard_domain }}`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))"
+              services:
+                - kind: TraefikService
+                  name: api@internal
+          tls:
+            secretName: cloudflare-tls
+      state: present

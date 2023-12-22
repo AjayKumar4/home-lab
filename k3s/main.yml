@@ -48,6 +48,11 @@
         --tls-san {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
         {% endfor %}   
       become: true
+      async: 300 # Wait for 5 minutes (300 seconds) for the K3s installation to complete
+      poll: 10 # Check the status of the K3s installation every 10 seconds
+      register: worker_install
+      until: worker_install.rc == 0
+      retries: 10 # Retry up to 10 times if the installation fails
 
     - name: Ensure required dependencies are installed.
       ansible.builtin.package:
@@ -99,6 +104,11 @@
         --tls-san {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
         {% endfor %}
       become: true
+      async: 300 # Wait for 5 minutes (300 seconds) for the K3s installation to complete
+      poll: 10 # Check the status of the K3s installation every 10 seconds
+      register: worker_install
+      until: worker_install.rc == 0
+      retries: 10 # Retry up to 10 times if the installation fails
 
 - name: Set up Helm.
   import_playbook: tasks/kubernetes/helm.yml
@@ -127,7 +137,3 @@
 - name: Set up Ingress-Nginx.
   import_playbook: tasks/kubernetes/ingress-nginx.yml
   tags: ['ingress-nginx']
-
-- name: Set up Rancher UI.
-  import_playbook: tasks/kubernetes/rancher.yml
-  tags: ['rancher']

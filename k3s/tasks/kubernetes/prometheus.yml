@@ -18,10 +18,6 @@
       name: prometheus-community
       repo_url: "https://prometheus-community.github.io/helm-charts"
       state: present
-    
-  - name: Download helm diff plugin
-    command: "helm repo update"
-    become: true
 
   - name: Deploy Prometheus + Grafana Helm chart.
     kubernetes.core.helm:
@@ -29,6 +25,7 @@
       chart_ref: prometheus-community/kube-prometheus-stack
       release_namespace: kube-system
       create_namespace: true
+      update_repo_cache: true
       wait: yes
       timeout: "{{ helm_time_out }}"
       state: present
