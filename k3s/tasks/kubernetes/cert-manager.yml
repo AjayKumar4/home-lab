@@ -31,6 +31,9 @@
       state: present
       values:
         installCRDs: true
+        extraArgs:
+          - --dns01-recursive-nameservers-only
+          - --dns01-recursive-nameservers=1.1.1.1:53,1.0.0.1:53
 
   - name: Create secret with Cloudflare API token
     kubernetes.core.k8s:

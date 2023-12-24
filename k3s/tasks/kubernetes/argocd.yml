@@ -1,0 +1,105 @@
+---
+- name: Deploy ArgoCD 
+  hosts: control_plane
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../config.yml
+
+  environment:
+    K8S_AUTH_KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    PATH: "~/go/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+  - name: Add ArgoCD Helm repository
+    kubernetes.core.helm_repository:
+      name: argo
+      repo_url: https://argoproj.github.io/argo-helm
+      state: present
+
+  - name: Deploy ArgoCD Helm chart
+    kubernetes.core.helm:
+      name: argocd
+      chart_ref: argo/argo-cd
+      release_namespace: argocd
+      create_namespace: true
+      update_repo_cache: true
+      wait: yes
+      timeout: "{{ helm_time_out }}"
+      state: present
+      values:
+        configs:
+          params:
+            server.insecure: true
+          cm:
+            statusbadge.enabled: 'true'
+            resource.customizations.health.argoproj.io_Application: |
+              # Modify this section according to the supported YAML syntax or Helm template syntax
+              # This conditional logic might require a different approach within Helm templates
+            kustomize.buildOptions: --enable-helm
+        server:
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            hosts:
+              - "{{ argocd_dashboard_domain }}"
+            tls:
+              - secretName: argocd-tls
+                hosts:
+                  - "{{ argocd_dashboard_domain }}"
+            paths:
+              - /
+            annotations:
+              nginx.ingress.kubernetes.io/service-upstream: "true"
+              cert-manager.io/cluster-issuer: cloudflare-issuer
+              cert-manager.io/common-name: "{{ argocd_dashboard_domain }}"
+
+  - name: Issue Let's Encrypt certificate
+    kubernetes.core.k8s:
+      definition:
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: argocd-certificate
+          namespace: argocd
+        spec:
+          secretName: argocd-tls
+          dnsNames:
+            - "{{ argocd_dashboard_domain }}"
+          issuerRef:
+            name: cloudflare-issuer
+            kind: Issuer
+            group: cert-manager.io
+      state: present
+
+  - name: Ingress argocd web ui
+    kubernetes.core.k8s:
+      definition:
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: argocd-ingress
+          namespace: argocd
+          annotations: {}
+            # traefik.ingress.kubernetes.io/router.entrypoints: websecure
+            # traefik.ingress.kubernetes.io/router.tls: "true"
+            # traefik.ingress.kubernetes.io/router.tls.options: default
+        spec:
+          rules:
+            - host: "{{ argocd_dashboard_domain }}"
+              http:
+                paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: argocd-server
+                        port:
+                          number: 80
+          tls:
+            - hosts:
+                - "{{ argocd_dashboard_domain }}"
+              secretName: argocd-tls
+      state: present
+

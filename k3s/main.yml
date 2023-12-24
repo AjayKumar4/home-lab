@@ -137,3 +137,7 @@
 - name: Set up Ingress-Nginx.
   import_playbook: tasks/kubernetes/ingress-nginx.yml
   tags: ['ingress-nginx']
+
+- name: Set up ArgoCD.
+  import_playbook: tasks/kubernetes/argocd.yml
+  tags: ['argocd']

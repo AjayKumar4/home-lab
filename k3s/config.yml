@@ -46,5 +46,4 @@ traefik_dashboard_domain: "traefik.{{ cloudflare_domain }}"
 ingress_nginx_load_balancer_ip: "192.168.1.202"
 ingress_nginx_dashboard_domain: "ingress-nginx.{{ cloudflare_domain }}"
 
-rancher_dashboard_domain: "rancher.{{ cloudflare_domain }}"
-
+argocd_dashboard_domain: "argocd.{{ cloudflare_domain }}"
