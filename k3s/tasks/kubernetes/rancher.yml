@@ -1,0 +1,70 @@
+---
+- name: Deploy Rancher 
+  hosts: control_plane
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../config.yml
+
+  environment:
+    K8S_AUTH_KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    PATH: "~/go/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+  - name: Add Rancher Helm repository
+    kubernetes.core.helm_repository:
+      name: rancher-latest
+      repo_url: https://releases.rancher.com/server-charts/latest
+      state: present
+
+  - name: Deploy Rancher Helm chart
+    kubernetes.core.helm:
+      name: rancher
+      chart_ref: rancher-latest/rancher
+      release_namespace: cattle-system
+      create_namespace: true
+      update_repo_cache: true
+      wait: yes
+      timeout: "{{ helm_time_out }}"
+      state: present
+      values:
+        bootstrapPassword: "{{ ansible_sudo_pass }}"
+        hostname: "{{ rancher_dashboard_domain }}"
+        letsEncrypt:
+          email: "{{ cloudflare_email }}"
+          ingress:
+            class: traefik
+        ingress:
+          ingressClassName: traefik    
+          extraAnnotations:
+            external-dns.alpha.kubernetes.io/hostname: "{{ rancher_dashboard_domain }}"
+            external-dns.alpha.kubernetes.io/ttl: "120" #optional
+            external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+          tls:
+            source: letsEncrypt
+            secretName: rancher-tls
+        service:
+          type: LoadBalancer
+          annotations:
+            external-dns.alpha.kubernetes.io/hostname: "{{ rancher_dashboard_domain }}"
+            external-dns.alpha.kubernetes.io/ttl: "120" #optional
+            external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+
+  - name: Issue Let's Encrypt certificate
+    kubernetes.core.k8s:
+      definition:
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: rancher-certificate
+          namespace: cattle-system
+        spec:
+          secretName: rancher-tls
+          dnsNames:
+            - "{{ rancher_dashboard_domain }}"
+          issuerRef:
+            name: cloudflare-issuer
+            kind: Issuer
+            group: cert-manager.io
+      state: present

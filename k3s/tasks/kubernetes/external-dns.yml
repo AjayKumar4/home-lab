@@ -1,0 +1,43 @@
+---
+- name: Deploy external-dns 
+  hosts: control_plane
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../config.yml
+
+  environment:
+    K8S_AUTH_KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    PATH: "~/go/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+  - name: Add external-dns Helm repository
+    kubernetes.core.helm_repository:
+      name: external-dns
+      repo_url: https://kubernetes-sigs.github.io/external-dns
+      state: present
+
+  - name: Deploy external-dns Helm chart
+    kubernetes.core.helm:
+      name: external-dns
+      chart_ref: external-dns/external-dns
+      release_namespace: external-dns
+      create_namespace: true
+      update_repo_cache: true
+      wait: yes
+      timeout: "{{ helm_time_out }}"
+      state: present
+      values:
+        provider: cloudflare
+        domainFilters: 
+          - "{{ cloudflare_domain }}"
+        rbac:
+          create: true
+        env: 
+        - name: CF_API_KEY
+          value: "{{ cloudflare_api_key }}"
+        - name: CF_API_EMAIL
+          value: "{{ cloudflare_email }}"
+
+

@@ -47,3 +47,6 @@ ingress_nginx_load_balancer_ip: "192.168.1.202"
 ingress_nginx_dashboard_domain: "ingress-nginx.{{ cloudflare_domain }}"
 
 argocd_dashboard_domain: "argocd.{{ cloudflare_domain }}"
+argocd_load_balancer_ip: "192.168.1.203"
+
+rancher_dashboard_domain: "rancher.{{ cloudflare_domain }}"

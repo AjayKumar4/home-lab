@@ -122,9 +122,9 @@
   import_playbook: tasks/kubernetes/cert-manager.yml
   tags: ['cert-manager']
 
-- name: Set up Prometheus.
-  import_playbook: tasks/kubernetes/prometheus.yml
-  tags: ['prometheus']
+- name: Set up External-DNS.
+  import_playbook: tasks/kubernetes/external-dns.yml
+  tags: ['external-dns']
 
 - name: Set up Metallb.
   import_playbook: tasks/kubernetes/metallb.yml
@@ -134,10 +134,18 @@
   import_playbook: tasks/kubernetes/traefik.yml
   tags: ['traefik']
 
-- name: Set up Ingress-Nginx.
-  import_playbook: tasks/kubernetes/ingress-nginx.yml
-  tags: ['ingress-nginx']
+# - name: Set up Ingress-Nginx.
+#   import_playbook: tasks/kubernetes/ingress-nginx.yml
+#   tags: ['ingress-nginx']
 
 - name: Set up ArgoCD.
   import_playbook: tasks/kubernetes/argocd.yml
   tags: ['argocd']
+
+# - name: Set up Rancher.
+#   import_playbook: tasks/kubernetes/rancher.yml
+#   tags: ['rancher']
+
+- name: Set up Prometheus.
+  import_playbook: tasks/kubernetes/prometheus.yml
+  tags: ['prometheus']

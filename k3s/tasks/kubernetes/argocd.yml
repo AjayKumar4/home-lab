@@ -12,6 +12,15 @@
     PATH: "~/go/bin:{{ ansible_env.PATH }}"
 
   tasks:
+  - name: Generate hashed password argocdServerAdminPassword
+    ansible.builtin.shell: >-
+      htpasswd -nbBC 10 '' {{ ansible_sudo_pass }} | tr -d ':\n' | sed 's/$2y/$2a/'
+    register: htpasswd_output
+
+  - name: Set fact with the generated password
+    ansible.builtin.set_fact:
+      argocd_server_admin_password: "{{ htpasswd_output.stdout }}"
+
   - name: Add ArgoCD Helm repository
     kubernetes.core.helm_repository:
       name: argo
@@ -38,10 +47,21 @@
               # Modify this section according to the supported YAML syntax or Helm template syntax
               # This conditional logic might require a different approach within Helm templates
             kustomize.buildOptions: --enable-helm
+          secret:
+            argocdServerAdminPassword: "{{ argocd_server_admin_password }}"
         server:
+          service:
+            type: LoadBalancer
+            loadBalancerIP: "{{ argocd_load_balancer_ip }}"
+            annotations:
+              traefik.ingress.kubernetes.io/router.middlewares: "argocd-redirect@kubernetescrd"
+              traefik.ingress.kubernetes.io/router.entrypoints: https
+              external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
+              external-dns.alpha.kubernetes.io/ttl: "120" #optional
+              external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
           ingress:
             enabled: true
-            ingressClassName: nginx
+            ingressClassName: traefik
             hosts:
               - "{{ argocd_dashboard_domain }}"
             tls:
@@ -54,6 +74,23 @@
               nginx.ingress.kubernetes.io/service-upstream: "true"
               cert-manager.io/cluster-issuer: cloudflare-issuer
               cert-manager.io/common-name: "{{ argocd_dashboard_domain }}"
+              traefik.ingress.kubernetes.io/router.entrypoints: web
+              traefik.ingress.kubernetes.io/router.middlewares: "argocd-stripprefix@kubernetescrd"
+              traefik.ingress.kubernetes.io/router.middlewares.default.stripprefix.prefixes: "/argocd"
+              external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
+              external-dns.alpha.kubernetes.io/ttl: "120" #optional
+              external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+            labels:
+              traefik.ingress.kubernetes.io/redirect-entry-point: https
+          ingressGrpc:
+            enabled: true
+            ingressClassName: "traefik"
+            hosts:
+              - "{{ argocd_dashboard_domain }}"
+            tls:
+              - secretName: argocd-tls
+                hosts:
+                  - "{{ argocd_dashboard_domain }}"
 
   - name: Issue Let's Encrypt certificate
     kubernetes.core.k8s:
@@ -71,35 +108,5 @@
             name: cloudflare-issuer
             kind: Issuer
             group: cert-manager.io
-      state: present
-
-  - name: Ingress argocd web ui
-    kubernetes.core.k8s:
-      definition:
-        apiVersion: networking.k8s.io/v1
-        kind: Ingress
-        metadata:
-          name: argocd-ingress
-          namespace: argocd
-          annotations: {}
-            # traefik.ingress.kubernetes.io/router.entrypoints: websecure
-            # traefik.ingress.kubernetes.io/router.tls: "true"
-            # traefik.ingress.kubernetes.io/router.tls.options: default
-        spec:
-          rules:
-            - host: "{{ argocd_dashboard_domain }}"
-              http:
-                paths:
-                  - path: /
-                    pathType: Prefix
-                    backend:
-                      service:
-                        name: argocd-server
-                        port:
-                          number: 80
-          tls:
-            - hosts:
-                - "{{ argocd_dashboard_domain }}"
-              secretName: argocd-tls
       state: present
 
