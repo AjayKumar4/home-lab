@@ -49,38 +49,47 @@
           kubernetesIngress:
             publishedService:
               enabled: true
-        ingressRoute:
-          dashboard:
-            enabled: true
-            annotations:
-              external-dns.alpha.kubernetes.io/hostname: "{{ traefik_dashboard_domain }}"
-              external-dns.alpha.kubernetes.io/ttl: "120" #optional
-              external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-            # Custom match rule with host domain
-            matchRule: Host(`"{{ traefik_dashboard_domain }}"`) && PathPrefix(`/dashboard`) || PathPrefix(`/api`)
-            entryPoints: ["traefik"]
-            # Add custom middlewares : authentication and redirection
-            middlewares:
-              - name: traefik-dashboard-auth
-        # Create the custom middlewares used by the IngressRoute dashboard (can also be created in another way).
-        # /!\ Yes, you need to replace "changeme" password with a better one. /!\
-        extraObjects:
-          - apiVersion: v1
-            kind: Secret
-            metadata:
-              name: traefik-dashboard-auth-secret
-            type: kubernetes.io/basic-auth
-            stringData:
-              username: "{{ ansible_user}}"
-              password: "{{ ansible_sudo_pass }}"
-          - apiVersion: traefik.io/v1alpha1
-            kind: Middleware
-            metadata:
-              name: traefik-dashboard-auth
-            spec:
-              basicAuth:
-                secret: traefik-dashboard-auth-secret
-        tlsStore:
-          default:
-            defaultCertificate:
-              secretName: cloudflare-tls
+
+  - name: Apply Ingress dashboard
+    kubernetes.core.k8s:
+      state: present
+      definition: |
+        apiVersion: traefik.io/v1alpha1
+        kind: IngressRoute
+        metadata:
+          name: dashboard
+          namespace: traefik
+          annotations: 
+            external-dns.alpha.kubernetes.io/hostname: "{{ traefik_dashboard_domain }}"
+            external-dns.alpha.kubernetes.io/ttl: "120" #optional
+            external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+        spec:
+          entryPoints:
+            - web
+          routes:
+            - match: Host(`"{{ traefik_dashboard_domain }}"`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
+              kind: Rule
+              services:
+                - name: api@internal
+                  kind: TraefikService
+          tls:
+            secretName: traefik-tls
+
+  - name: Issue Let's Encrypt certificate
+    kubernetes.core.k8s:
+      definition:
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: traefik-certificate
+          namespace: traefik
+        spec:
+          secretName: traefik-tls
+          dnsNames:
+            - "{{ traefik_dashboard_domain }}"
+          issuerRef:
+            name: cloudflare-issuer
+            kind: Issuer
+            group: cert-manager.io
+      state: present
+

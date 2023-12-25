@@ -12,15 +12,6 @@
     PATH: "~/go/bin:{{ ansible_env.PATH }}"
 
   tasks:
-  - name: Generate hashed password argocdServerAdminPassword
-    ansible.builtin.shell: >-
-      htpasswd -nbBC 10 '' {{ ansible_sudo_pass }} | tr -d ':\n' | sed 's/$2y/$2a/'
-    register: htpasswd_output
-
-  - name: Set fact with the generated password
-    ansible.builtin.set_fact:
-      argocd_server_admin_password: "{{ htpasswd_output.stdout }}"
-
   - name: Add ArgoCD Helm repository
     kubernetes.core.helm_repository:
       name: argo
@@ -54,8 +45,6 @@
             type: LoadBalancer
             loadBalancerIP: "{{ argocd_load_balancer_ip }}"
             annotations:
-              traefik.ingress.kubernetes.io/router.middlewares: "argocd-redirect@kubernetescrd"
-              traefik.ingress.kubernetes.io/router.entrypoints: https
               external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
               external-dns.alpha.kubernetes.io/ttl: "120" #optional
               external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
@@ -71,17 +60,9 @@
             paths:
               - /
             annotations:
-              nginx.ingress.kubernetes.io/service-upstream: "true"
-              cert-manager.io/cluster-issuer: cloudflare-issuer
-              cert-manager.io/common-name: "{{ argocd_dashboard_domain }}"
-              traefik.ingress.kubernetes.io/router.entrypoints: web
-              traefik.ingress.kubernetes.io/router.middlewares: "argocd-stripprefix@kubernetescrd"
-              traefik.ingress.kubernetes.io/router.middlewares.default.stripprefix.prefixes: "/argocd"
               external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
               external-dns.alpha.kubernetes.io/ttl: "120" #optional
               external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-            labels:
-              traefik.ingress.kubernetes.io/redirect-entry-point: https
           ingressGrpc:
             enabled: true
             ingressClassName: "traefik"
