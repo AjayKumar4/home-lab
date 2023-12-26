@@ -72,6 +72,8 @@
       ansible.builtin.file:
         path: /etc/hosts
         state: touch
+        owner: root
+        group: root
         mode: '0664'
 
     - name: Update /etc/hosts file
@@ -98,9 +100,4 @@
           {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
           {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
           {% endfor %}
-        
-    
-
-
-
-
+            

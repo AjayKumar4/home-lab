@@ -14,12 +14,16 @@ network:
     nameservers:
       - 192.168.1.254
       - 1.1.1.1
+      - 9.9.9.9
+      - 8.8.8.8
   wlan0:
     ipv4_subnet_prefix: 192.168.8
     gateway: 192.168.8.1
     nameservers:
       - 192.168.8.1
       - 1.1.1.1
+      - 9.9.9.9
+      - 8.8.8.8
   tailscale:
     ipv4_subnet_prefix: 100.64.0
 

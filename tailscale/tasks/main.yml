@@ -1,19 +1,21 @@
 ---
-- name: Download Tailscale installation script
-  get_url:
-    url: https://tailscale.com/install.sh
-    dest: /tmp/tailscale.sh
-    owner: root
-    group: root
-    mode: 0755
+    # Download Tailscale installation script
+    - name: Download Tailscale installation script
+      get_url:
+        url: https://tailscale.com/install.sh
+        dest: /tmp/tailscale.sh
+        mode: 0755
 
-- name: Install Tailscale
-  shell: /tmp/tailscale.sh
+    # Install Tailscale
+    - name: Install Tailscale
+      shell: /tmp/tailscale.sh
 
-- name: Retrieve Tailscale API Key
-  shell: "tailscale up --authkey {{ tailscale_authkey }} --hostname {{ inventory_hostname }} --accept-dns=false"
+    # Set custom Tailscale IP address
+    - name: Set custom Tailscale IP address
+      shell: "tailscale up --authkey {{ tailscale_authkey }} --hostname {{ inventory_hostname }} --advertise-routes={{ network.eth0.ipv4_subnet_prefix }}.0/24,{{ network.wlan0.ipv4_subnet_prefix }}.0/24 --accept-dns=false"
 
-- name: Delete Tailscale installation script
-  file:
-    path: /tmp/tailscale.sh
-    state: absent
+    # Delete Tailscale installation script
+    - name: Delete Tailscale installation script
+      file:
+        path: /tmp/tailscale.sh
+        state: absent
