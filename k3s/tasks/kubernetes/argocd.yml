@@ -54,7 +54,7 @@
             hosts:
               - "{{ argocd_dashboard_domain }}"
             tls:
-              - secretName: argocd-tls
+              - secretName: cloudflare-tls
                 hosts:
                   - "{{ argocd_dashboard_domain }}"
             paths:
@@ -69,25 +69,8 @@
             hosts:
               - "{{ argocd_dashboard_domain }}"
             tls:
-              - secretName: argocd-tls
+              - secretName: cloudflare-tls
                 hosts:
                   - "{{ argocd_dashboard_domain }}"
 
-  - name: Issue Let's Encrypt certificate
-    kubernetes.core.k8s:
-      definition:
-        apiVersion: cert-manager.io/v1
-        kind: Certificate
-        metadata:
-          name: argocd-certificate
-          namespace: argocd
-        spec:
-          secretName: argocd-tls
-          dnsNames:
-            - "{{ argocd_dashboard_domain }}"
-          issuerRef:
-            name: cloudflare-issuer
-            kind: Issuer
-            group: cert-manager.io
-      state: present
 

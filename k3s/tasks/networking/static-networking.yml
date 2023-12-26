@@ -12,56 +12,56 @@
     - ../../config.yml
 
   tasks:
-    - name: Install netplan.io package
-      ansible.builtin.apt:
-        name: netplan.io
-        state: present
+    # - name: Install netplan.io package
+    #   ansible.builtin.apt:
+    #     name: netplan.io
+    #     state: present
 
-    - name: Create directory if it doesn't exist
-      ansible.builtin.file:
-        path: /etc/netplan
-        state: directory
+    # - name: Create directory if it doesn't exist
+    #   ansible.builtin.file:
+    #     path: /etc/netplan
+    #     state: directory
 
-    - name: Configure static IP address on each node.
-      ansible.builtin.copy:
-        content: |
-          network:
-            version: 2
-            renderer: NetworkManager
-            ethernets:
-              eth0:
-                dhcp4: no
-                dhcp6: no
-                addresses: [{{ network.eth0.ipv4_subnet_prefix }}.{{ ip_host_octet }}/24]
-                nameservers:
-                  addresses: {{ network.eth0.nameservers }}
-                routes:
-                  - to: 0.0.0.0
-                    via: {{ network.eth0.gateway }}
-            wifis:
-              wlan0:
-                dhcp4: no
-                dhcp6: no
-                addresses: [{{ network.wlan0.ipv4_subnet_prefix }}.{{ ip_host_octet }}/24]
-                nameservers:
-                  addresses: {{ network.wlan0.nameservers }}
-                access-points:
-                  "home-lab":
-                    password: "Friendship@4"
-                  "home-lab_5G":
-                    password: "Friendship@4"
-                routes:
-                  - to: 0.0.0.0
-                    via: {{ network.wlan0.gateway }}
-        dest: /etc/netplan/01-netcfg.yaml
+    # - name: Configure static IP address on each node.
+    #   ansible.builtin.copy:
+    #     content: |
+    #       network:
+    #         version: 2
+    #         renderer: NetworkManager
+    #         ethernets:
+    #           eth0:
+    #             dhcp4: no
+    #             dhcp6: no
+    #             addresses: [{{ network.eth0.ipv4_subnet_prefix }}.{{ ip_host_octet }}/24]
+    #             nameservers:
+    #               addresses: {{ network.eth0.nameservers }}
+    #             routes:
+    #               - to: 0.0.0.0
+    #                 via: {{ network.eth0.gateway }}
+    #         wifis:
+    #           wlan0:
+    #             dhcp4: no
+    #             dhcp6: no
+    #             addresses: [{{ network.wlan0.ipv4_subnet_prefix }}.{{ ip_host_octet }}/24]
+    #             nameservers:
+    #               addresses: {{ network.wlan0.nameservers }}
+    #             access-points:
+    #               "home-lab":
+    #                 password: "Friendship@4"
+    #               "home-lab_5G":
+    #                 password: "Friendship@4"
+    #             routes:
+    #               - to: 0.0.0.0
+    #                 via: {{ network.wlan0.gateway }}
+    #     dest: /etc/netplan/01-netcfg.yaml
 
-    - name: Set correct permissions for the Netplan configuration file
-      ansible.builtin.file:
-        path: /etc/netplan/01-netcfg.yaml
-        owner: root
-        group: root
-        mode: '0644'
-      notify: apply netplan
+    # - name: Set correct permissions for the Netplan configuration file
+    #   ansible.builtin.file:
+    #     path: /etc/netplan/01-netcfg.yaml
+    #     owner: root
+    #     group: root
+    #     mode: '0644'
+    #   notify: apply netplan
 
     - name: Delete /etc/hosts file
       ansible.builtin.file:

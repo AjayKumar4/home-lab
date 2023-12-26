@@ -43,28 +43,10 @@
             external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
           tls:
             source: letsEncrypt
-            secretName: rancher-tls
+            secretName:  cloudflare-tls
         service:
           type: LoadBalancer
           annotations:
             external-dns.alpha.kubernetes.io/hostname: "{{ rancher_dashboard_domain }}"
             external-dns.alpha.kubernetes.io/ttl: "120" #optional
             external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-
-  - name: Issue Let's Encrypt certificate
-    kubernetes.core.k8s:
-      definition:
-        apiVersion: cert-manager.io/v1
-        kind: Certificate
-        metadata:
-          name: rancher-certificate
-          namespace: cattle-system
-        spec:
-          secretName: rancher-tls
-          dnsNames:
-            - "{{ rancher_dashboard_domain }}"
-          issuerRef:
-            name: cloudflare-issuer
-            kind: Issuer
-            group: cert-manager.io
-      state: present

@@ -30,25 +30,103 @@
       timeout: "{{ helm_time_out }}"
       state: present
       values:
+        globalArguments:
+          - '--global.checknewversion=false'
+          - '--global.sendanonymoususage=false'
         additionalArguments:
-          - "--metrics.prometheus=true"
-        metrics:
-          prometheus:
-            service:
+          - '--serversTransport.insecureSkipVerify=true'
+          - '--log.level=INFO'
+        deployment:
+          enabled: true
+          replicas: 3
+          annotations: {}
+          podAnnotations: {}
+          additionalContainers: []
+          initContainers: []
+        ports:
+          web:
+            redirectTo: websecure
+          websecure:
+            tls:
               enabled: true
-        service:
-          spec:
-            # Set load balancer external IP
-            loadBalancerIP: "{{ traefik_load_balancer_ip }}"
+        ingressRoute:
+          dashboard:
+            enabled: false
         providers:
-          # Enable cross namespace references
           kubernetesCRD:
             enabled: true
-            allowCrossNamespace: true
-          # Enable published service
+            ingressClass: traefik-external
           kubernetesIngress:
+            enabled: true 
             publishedService:
-              enabled: true
+              enabled: false 
+        rbac:
+          enabled: true
+        service:
+          enabled: true 
+          type: LoadBalancer
+          annotations: {}
+          labels: {}
+          spec:
+            loadBalancerIP: "{{ traefik_load_balancer_ip }}"
+          loadBalancerSourceRanges: []
+          externalIPs: []
+
+  - name: Apply default header
+    kubernetes.core.k8s:
+      state: present
+      definition: |
+        apiVersion: traefik.containo.us/v1alpha1
+        kind: Middleware
+        metadata:
+          name: default-headers
+          namespace: default
+        spec:
+          headers:
+            browserXssFilter: true
+            contentTypeNosniff: true
+            forceSTSHeader: true 
+            stsIncludeSubdomains: true
+            stsPreload: true
+            stsSeconds: 15552000
+            customFrameOptionsValue: SAMEORIGIN
+            customRequestHeaders:
+              X-Forwarded-Proto: https
+
+  - name: Generate hashed password
+    ansible.builtin.shell: htpasswd -nb {{ ansible_user }} {{ ansible_sudo_pass }} | openssl base64
+    register: hashed_password_output
+
+  - name: Set variable with base64-encoded password
+    set_fact:
+      traefik_dashboard_secert: "{{ hashed_password_output.stdout }}"
+
+  - name: Apply dashboard secert
+    kubernetes.core.k8s:
+      state: present
+      definition: |
+        ---
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: traefik-dashboard-auth
+          namespace: traefik
+        type: Opaque
+        data:
+          users: "{{ traefik_dashboard_secert }}"
+
+  - name: Apply traefik Middleware
+    kubernetes.core.k8s:
+      state: present
+      definition: |
+        apiVersion: traefik.containo.us/v1alpha1
+        kind: Middleware
+        metadata:
+          name: traefik-dashboard-basicauth
+          namespace: traefik
+        spec:
+          basicAuth:
+            secret: traefik-dashboard-auth
 
   - name: Apply Ingress dashboard
     kubernetes.core.k8s:
@@ -57,39 +135,26 @@
         apiVersion: traefik.io/v1alpha1
         kind: IngressRoute
         metadata:
-          name: dashboard
+          name: traefik-dashboard
           namespace: traefik
           annotations: 
             external-dns.alpha.kubernetes.io/hostname: "{{ traefik_dashboard_domain }}"
             external-dns.alpha.kubernetes.io/ttl: "120" #optional
             external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+            kubernetes.io/ingress.class: traefik-external
         spec:
           entryPoints:
-            - web
+            - websecure
           routes:
-            - match: Host(`"{{ traefik_dashboard_domain }}"`) && (PathPrefix(`/dashboard`) || PathPrefix(`/api`))
+            - match: Host(`"{{ traefik_dashboard_domain }}"`)
               kind: Rule
+              middlewares:
+                - name: traefik-dashboard-basicauth
+                  namespace: traefik
               services:
                 - name: api@internal
                   kind: TraefikService
           tls:
-            secretName: traefik-tls
+            secretName:  cloudflare-tls
 
-  - name: Issue Let's Encrypt certificate
-    kubernetes.core.k8s:
-      definition:
-        apiVersion: cert-manager.io/v1
-        kind: Certificate
-        metadata:
-          name: traefik-certificate
-          namespace: traefik
-        spec:
-          secretName: traefik-tls
-          dnsNames:
-            - "{{ traefik_dashboard_domain }}"
-          issuerRef:
-            name: cloudflare-issuer
-            kind: Issuer
-            group: cert-manager.io
-      state: present
 

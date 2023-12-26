@@ -57,7 +57,7 @@
     kubernetes.core.k8s:
       definition:
         apiVersion: cert-manager.io/v1
-        kind: Issuer
+        kind: ClusterIssuer
         metadata:
           name: cloudflare-issuer
           namespace: cert-manager
@@ -66,7 +66,8 @@
             email: "{{ cloudflare_email }}"
             privateKeySecretRef:
               name: cloudflare-issuer-key
-            server: https://acme-v02.api.letsencrypt.org/directory
+            # server: https://acme-v02.api.letsencrypt.org/directory
+            server: https://acme-staging-v02.api.letsencrypt.org/directory
             solvers:
               - dns01:
                   cloudflare:
@@ -74,6 +75,9 @@
                     apiKeySecretRef:
                       name: cloudflare-api-key-secret
                       key: api-key
+                selector:
+                  dnsZones:
+                    - "{{ cloudflare_domain }}"
       state: present
 
   - name: Issue Let's Encrypt certificate
@@ -91,6 +95,5 @@
             - "*.{{ cloudflare_domain }}"
           issuerRef:
             name: cloudflare-issuer
-            kind: Issuer
-            group: cert-manager.io
+            kind: ClusterIssuer
       state: present
