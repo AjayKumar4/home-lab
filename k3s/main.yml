@@ -50,8 +50,8 @@
       become: true
       async: 300 # Wait for 5 minutes (300 seconds) for the K3s installation to complete
       poll: 10 # Check the status of the K3s installation every 10 seconds
-      register: worker_install
-      until: worker_install.rc == 0
+      register: control_plane_install
+      until: control_plane_install.rc == 0
       retries: 10 # Retry up to 10 times if the installation fails
 
     - name: Ensure required dependencies are installed.

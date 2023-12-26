@@ -30,47 +30,19 @@
       timeout: "{{ helm_time_out }}"
       state: present
       values:
-        globalArguments:
-          - '--global.checknewversion=false'
-          - '--global.sendanonymoususage=false'
-        additionalArguments:
-          - '--serversTransport.insecureSkipVerify=true'
-          - '--log.level=INFO'
-        deployment:
-          enabled: true
-          replicas: 3
-          annotations: {}
-          podAnnotations: {}
-          additionalContainers: []
-          initContainers: []
-        ports:
-          web:
-            redirectTo: websecure
-          websecure:
-            tls:
-              enabled: true
-        ingressRoute:
-          dashboard:
-            enabled: false
+        service:
+          spec:
+            # Set load balancer external IP
+            loadBalancerIP: 192.168.1.201
         providers:
+          # Enable cross namespace references
           kubernetesCRD:
             enabled: true
-            ingressClass: traefik-external
+            allowCrossNamespace: true
+          # Enable published service
           kubernetesIngress:
-            enabled: true 
             publishedService:
-              enabled: false 
-        rbac:
-          enabled: true
-        service:
-          enabled: true 
-          type: LoadBalancer
-          annotations: {}
-          labels: {}
-          spec:
-            loadBalancerIP: "{{ traefik_load_balancer_ip }}"
-          loadBalancerSourceRanges: []
-          externalIPs: []
+              enabled: true
 
   - name: Apply default header
     kubernetes.core.k8s:
@@ -124,6 +96,11 @@
         metadata:
           name: traefik-dashboard-basicauth
           namespace: traefik
+          labels:
+            app.kubernetes.io/managed-by: Helm
+          annotations:
+            meta.helm.sh/release-name: traefik
+            meta.helm.sh/release-namespace: traefik
         spec:
           basicAuth:
             secret: traefik-dashboard-auth
@@ -141,7 +118,8 @@
             external-dns.alpha.kubernetes.io/hostname: "{{ traefik_dashboard_domain }}"
             external-dns.alpha.kubernetes.io/ttl: "120" #optional
             external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-            kubernetes.io/ingress.class: traefik-external
+            cert-manager.io/cluster-issuer: letsencrypt-issuer
+            kubernetes.io/ingress.class: traefik
         spec:
           entryPoints:
             - websecure
@@ -154,7 +132,21 @@
               services:
                 - name: api@internal
                   kind: TraefikService
-          tls:
-            secretName:  cloudflare-tls
 
+  # - name: Issue Let's Encrypt certificate
+  #   kubernetes.core.k8s:
+  #     definition:
+  #       apiVersion: cert-manager.io/v1
+  #       kind: Certificate
+  #       metadata:
+  #         name: traefik-certificate
+  #         namespace: traefik
+  #       spec:
+  #         secretName: traefik-tls
+  #         dnsNames:
+  #           - "{{ traefik_dashboard_domain }}"
+  #         issuerRef:
+  #           name: cloudflare-issuer
+  #           kind: ClusterIssuer
+  #     state: present
 

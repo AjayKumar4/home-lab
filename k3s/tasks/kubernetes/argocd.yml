@@ -48,29 +48,38 @@
               external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
               external-dns.alpha.kubernetes.io/ttl: "120" #optional
               external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+              cert-manager.io/cluster-issuer: letsencrypt-issuer
+              kubernetes.io/ingress.class: traefik
           ingress:
             enabled: true
             ingressClassName: traefik
-            hosts:
-              - "{{ argocd_dashboard_domain }}"
-            tls:
-              - secretName: cloudflare-tls
-                hosts:
-                  - "{{ argocd_dashboard_domain }}"
-            paths:
-              - /
             annotations:
               external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
               external-dns.alpha.kubernetes.io/ttl: "120" #optional
               external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-          ingressGrpc:
-            enabled: true
-            ingressClassName: "traefik"
+              cert-manager.io/cluster-issuer: letsencrypt-issuer
+              kubernetes.io/ingress.class: traefik
             hosts:
               - "{{ argocd_dashboard_domain }}"
             tls:
-              - secretName: cloudflare-tls
+              - secretName: argocd-tls
                 hosts:
                   - "{{ argocd_dashboard_domain }}"
-
+            paths:
+              - /
+          ingressGrpc:
+            enabled: true
+            ingressClassName: "traefik"
+            annotations:
+              external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
+              external-dns.alpha.kubernetes.io/ttl: "120" #optional
+              external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+              cert-manager.io/cluster-issuer: letsencrypt-issuer
+              kubernetes.io/ingress.class: traefik
+            hosts:
+              - "{{ argocd_dashboard_domain }}"
+            tls:
+              - secretName: argocd-tls
+                hosts:
+                  - "{{ argocd_dashboard_domain }}"
 
