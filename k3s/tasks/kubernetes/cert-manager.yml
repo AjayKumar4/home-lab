@@ -31,6 +31,15 @@
       state: present
       values:
         installCRDs: true
+        replicaCount: 3
+        extraArgs:
+          - --dns01-recursive-nameservers=1.1.1.1:53,9.9.9.9:53
+          - --dns01-recursive-nameservers-only
+        podDnsPolicy: None
+        podDnsConfig:
+          nameservers:
+            - 1.1.1.1
+            - 9.9.9.9
 
   - name: Create secret with Cloudflare API token
     kubernetes.core.k8s:
@@ -44,34 +53,7 @@
           api-key: "{{ cloudflare_api_key | b64encode }}"
       state: present
   
-  # - name: Install Cloudflare DNS cert-manager issuer
-  #   kubernetes.core.k8s:
-  #     definition:
-  #       apiVersion: cert-manager.io/v1
-  #       kind: ClusterIssuer
-  #       metadata:
-  #         name: cloudflare-issuer
-  #         namespace: cert-manager
-  #       spec:
-  #         acme:
-  #           email: "{{ cloudflare_email }}"
-  #           privateKeySecretRef:
-  #             name: cloudflare-issuer
-  #           # server: https://acme-v02.api.letsencrypt.org/directory
-  #           server: https://acme-staging-v02.api.letsencrypt.org/directory
-  #           solvers:
-  #             - dns01:
-  #                 cloudflare:
-  #                   email: "{{ cloudflare_email }}"
-  #                   apiKeySecretRef:
-  #                     name: cloudflare-api-key-secret
-  #                     key: api-key
-  #               selector:
-  #                 dnsZones:
-  #                   - "{{ cloudflare_domain }}"
-  #     state: present
-
-  - name: Install letsencrypt issuer
+  - name: Install Cloudflare DNS cert-manager issuer
     kubernetes.core.k8s:
       definition:
         apiVersion: cert-manager.io/v1
@@ -84,29 +66,56 @@
             email: "{{ cloudflare_email }}"
             privateKeySecretRef:
               name: letsencrypt-issuer
-            # server: https://acme-v02.api.letsencrypt.org/directory
-            server: https://acme-staging-v02.api.letsencrypt.org/directory
+            server: https://acme-v02.api.letsencrypt.org/directory
+            # server: https://acme-staging-v02.api.letsencrypt.org/directory
             solvers:
-              - selector: {}
-                http01:
-                  ingress:
-                    class: traefik
+              - dns01:
+                  cloudflare:
+                    email: "{{ cloudflare_email }}"
+                    apiKeySecretRef:
+                      name: cloudflare-api-key-secret
+                      key: api-key
+                selector:
+                  dnsZones:
+                    - "{{ cloudflare_domain }}"
       state: present
 
-  # - name: Issue Let's Encrypt certificate
+  # - name: Install letsencrypt issuer
   #   kubernetes.core.k8s:
   #     definition:
   #       apiVersion: cert-manager.io/v1
-  #       kind: Certificate
+  #       kind: ClusterIssuer
   #       metadata:
-  #         name: cloudflare-certificate
+  #         name: letsencrypt-issuer
   #         namespace: cert-manager
   #       spec:
-  #         secretName: cloudflare-tls
-  #         dnsNames:
-  #           - "{{ cloudflare_domain }}"
-  #           - "*.{{ cloudflare_domain }}"
-  #         issuerRef:
-  #           name: cloudflare-issuer
-  #           kind: ClusterIssuer
+  #         acme:
+  #           email: "{{ cloudflare_email }}"
+  #           privateKeySecretRef:
+  #             name: letsencrypt-issuer
+  #           # server: https://acme-v02.api.letsencrypt.org/directory
+  #           server: https://acme-staging-v02.api.letsencrypt.org/directory
+  #           solvers:
+  #             - selector: {}
+  #               http01:
+  #                 ingress:
+  #                   class: traefik
   #     state: present
+
+  - name: Issue Let's Encrypt certificate
+    kubernetes.core.k8s:
+      definition:
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: cloudflare-certificate
+          namespace: cert-manager
+        spec:
+          secretName: cloudflare-tls
+          dnsNames:
+            - "{{ cloudflare_domain }}"
+            - "*.{{ cloudflare_domain }}"
+          issuerRef:
+            name: letsencrypt-issuer
+            kind: ClusterIssuer
+      state: present

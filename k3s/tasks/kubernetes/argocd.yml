@@ -48,7 +48,6 @@
               external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
               external-dns.alpha.kubernetes.io/ttl: "120" #optional
               external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-              cert-manager.io/cluster-issuer: letsencrypt-issuer
               kubernetes.io/ingress.class: traefik
           ingress:
             enabled: true
@@ -57,7 +56,6 @@
               external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
               external-dns.alpha.kubernetes.io/ttl: "120" #optional
               external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-              cert-manager.io/cluster-issuer: letsencrypt-issuer
               kubernetes.io/ingress.class: traefik
             hosts:
               - "{{ argocd_dashboard_domain }}"
@@ -74,7 +72,6 @@
               external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
               external-dns.alpha.kubernetes.io/ttl: "120" #optional
               external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-              cert-manager.io/cluster-issuer: letsencrypt-issuer
               kubernetes.io/ingress.class: traefik
             hosts:
               - "{{ argocd_dashboard_domain }}"
@@ -83,3 +80,19 @@
                 hosts:
                   - "{{ argocd_dashboard_domain }}"
 
+  - name: Issue Let's Encrypt certificate
+    kubernetes.core.k8s:
+      definition:
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: argocd-certificate
+          namespace: argocd
+        spec:
+          secretName: argocd-tls
+          dnsNames:
+            - "{{ argocd_dashboard_domain }}"
+          issuerRef:
+            name: letsencrypt-issuer
+            kind: ClusterIssuer
+      state: present
