@@ -5,6 +5,7 @@ ansible_user: aj
 ansible_ssh_pass: Ajkumar@4
 ansible_sudo_pass: Ajkumar@4
 ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
 systemd_dir: /etc/systemd/system
 
 # Set your timezone

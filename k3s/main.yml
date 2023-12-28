@@ -26,6 +26,30 @@
     - config.yml
 
   tasks:
+    - name: Create manifests directory on first master
+      file:
+        path: /var/lib/rancher/k3s/server/manifests
+        state: directory
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Download vip rbac manifest to first master
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/kube-vip/kube-vip/{{ kube_vip_tag_version }}/docs/manifests/rbac.yaml"
+        dest: "/var/lib/rancher/k3s/server/manifests/vip-rbac.yaml"
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Copy vip manifest to first master
+      template:
+        src: "vip.yaml.j2"
+        dest: "/var/lib/rancher/k3s/server/manifests/vip.yaml"
+        owner: root
+        group: root
+        mode: 0644
+
     - name: Install K3s on control plane (takes a while).
       ansible.builtin.shell: >-
         curl -sfL https://get.k3s.io | sh -s - server \
@@ -33,8 +57,12 @@
         --write-kubeconfig-mode=644 \
         --cluster-init \
         --disable servicelb \
-        --disable traefik \
         --disable local-storage \
+        --flannel-iface={{ flannel_iface }}
+        --node-ip={{ ansible_facts[flannel_iface]["ipv4"]["address"] }}
+        {% if apiserver_endpoint is defined %}
+        --tls-san {{ apiserver_endpoint }} \
+        {% endif %}
         {% if k3s_dns_name is defined %}
         --tls-san {{ k3s_dns_name }} \
         {% endif %}
@@ -53,6 +81,22 @@
       register: control_plane_install
       until: control_plane_install.rc == 0
       retries: 10 # Retry up to 10 times if the installation fails
+
+    # - name: Download vip cloud controller manifest to first master
+    #   ansible.builtin.get_url:
+    #     url: "https://raw.githubusercontent.com/kube-vip/kube-vip/{{ kube_vip_tag_version }}/docs/manifests/controller.yaml"
+    #     dest: "/var/lib/rancher/k3s/server/manifests/vip-cloud-controller.yaml"
+    #     owner: root
+    #     group: root
+    #     mode: 0644
+
+    # - name: Copy vip config map manifest to first master
+    #   template:
+    #     src: "vip-config-map.yaml.j2"
+    #     dest: "/var/lib/rancher/k3s/server/manifests/vip-config-map.yaml"
+    #     owner: root
+    #     group: root
+    #     mode: 0644
 
     - name: Ensure required dependencies are installed.
       ansible.builtin.package:
@@ -87,10 +131,11 @@
         curl -sfL https://get.k3s.io | sh -s - server \
         --token={{ k3s_token }} \
         --write-kubeconfig-mode=644 \
-        --server https://{{ groups['control_plane'][0] }}:6443 \
+        --server https://{{ apiserver_endpoint }}:6443 \
         --disable servicelb \
-        --disable traefik \
         --disable local-storage \
+        --flannel-iface={{ flannel_iface }}
+        --node-ip={{ ansible_facts[flannel_iface]["ipv4"]["address"] }}
         {% if k3s_dns_name is defined %}
         --tls-san {{ k3s_dns_name }} \
         {% endif %}
@@ -118,34 +163,34 @@
   import_playbook: tasks/kubernetes/nfs.yml
   tags: ['nfs']
 
-- name: Set up Cert-Manager.
-  import_playbook: tasks/kubernetes/cert-manager.yml
-  tags: ['cert-manager']
+# - name: Set up Cert-Manager.
+#   import_playbook: tasks/kubernetes/cert-manager.yml
+#   tags: ['cert-manager']
 
-- name: Set up External-DNS.
-  import_playbook: tasks/kubernetes/external-dns.yml
-  tags: ['external-dns']
+# - name: Set up External-DNS.
+#   import_playbook: tasks/kubernetes/external-dns.yml
+#   tags: ['external-dns']
 
 - name: Set up Metallb.
   import_playbook: tasks/kubernetes/metallb.yml
   tags: ['metallb']
 
-- name: Set up Traefik.
-  import_playbook: tasks/kubernetes/traefik.yml
-  tags: ['traefik']
+# - name: Set up Traefik.
+#   import_playbook: tasks/kubernetes/traefik.yml
+#   tags: ['traefik']
 
 # - name: Set up Ingress-Nginx.
 #   import_playbook: tasks/kubernetes/ingress-nginx.yml
 #   tags: ['ingress-nginx']
 
-- name: Set up ArgoCD.
-  import_playbook: tasks/kubernetes/argocd.yml
-  tags: ['argocd']
+# - name: Set up ArgoCD.
+#   import_playbook: tasks/kubernetes/argocd.yml
+#   tags: ['argocd']
 
 # - name: Set up Rancher.
 #   import_playbook: tasks/kubernetes/rancher.yml
 #   tags: ['rancher']
 
-- name: Set up Prometheus.
-  import_playbook: tasks/kubernetes/prometheus.yml
-  tags: ['prometheus']
+# - name: Set up Prometheus.
+#   import_playbook: tasks/kubernetes/prometheus.yml
+#   tags: ['prometheus']

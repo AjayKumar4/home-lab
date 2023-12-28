@@ -13,7 +13,7 @@
 
   tasks:
   - name: Add Rancher Helm repository
-    kubernetes.core.helm_repository:
+      kubernetes.core.helm_repository:
       name: rancher-latest
       repo_url: https://releases.rancher.com/server-charts/latest
       state: present

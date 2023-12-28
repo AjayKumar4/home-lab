@@ -66,8 +66,8 @@
             email: "{{ cloudflare_email }}"
             privateKeySecretRef:
               name: letsencrypt-issuer
-            server: https://acme-v02.api.letsencrypt.org/directory
-            # server: https://acme-staging-v02.api.letsencrypt.org/directory
+            # server: https://acme-v02.api.letsencrypt.org/directory
+            server: https://acme-staging-v02.api.letsencrypt.org/directory
             solvers:
               - dns01:
                   cloudflare:
@@ -102,20 +102,20 @@
   #                   class: traefik
   #     state: present
 
-  - name: Issue Let's Encrypt certificate
-    kubernetes.core.k8s:
-      definition:
-        apiVersion: cert-manager.io/v1
-        kind: Certificate
-        metadata:
-          name: cloudflare-certificate
-          namespace: cert-manager
-        spec:
-          secretName: cloudflare-tls
-          dnsNames:
-            - "{{ cloudflare_domain }}"
-            - "*.{{ cloudflare_domain }}"
-          issuerRef:
-            name: letsencrypt-issuer
-            kind: ClusterIssuer
-      state: present
+  # - name: Issue Let's Encrypt certificate
+  #   kubernetes.core.k8s:
+  #     definition:
+  #       apiVersion: cert-manager.io/v1
+  #       kind: Certificate
+  #       metadata:
+  #         name: cloudflare-certificate
+  #         namespace: cert-manager
+  #       spec:
+  #         secretName: cloudflare-tls
+  #         dnsNames:
+  #           - "{{ cloudflare_domain }}"
+  #           - "*.{{ cloudflare_domain }}"
+  #         issuerRef:
+  #           name: letsencrypt-issuer
+  #           kind: ClusterIssuer
+  #     state: present

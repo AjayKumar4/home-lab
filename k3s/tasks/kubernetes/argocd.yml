@@ -44,19 +44,9 @@
           service:
             type: LoadBalancer
             loadBalancerIP: "{{ argocd_load_balancer_ip }}"
-            annotations:
-              external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
-              external-dns.alpha.kubernetes.io/ttl: "120" #optional
-              external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-              kubernetes.io/ingress.class: traefik
           ingress:
             enabled: true
             ingressClassName: traefik
-            annotations:
-              external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
-              external-dns.alpha.kubernetes.io/ttl: "120" #optional
-              external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-              kubernetes.io/ingress.class: traefik
             hosts:
               - "{{ argocd_dashboard_domain }}"
             tls:
@@ -68,11 +58,6 @@
           ingressGrpc:
             enabled: true
             ingressClassName: "traefik"
-            annotations:
-              external-dns.alpha.kubernetes.io/hostname: "{{ argocd_dashboard_domain }}"
-              external-dns.alpha.kubernetes.io/ttl: "120" #optional
-              external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-              kubernetes.io/ingress.class: traefik
             hosts:
               - "{{ argocd_dashboard_domain }}"
             tls:
