@@ -26,7 +26,7 @@
     - config.yml
 
   tasks:
-    - name: Create manifests directory on first master
+    - name: Create manifests directory
       file:
         path: /var/lib/rancher/k3s/server/manifests
         state: directory
@@ -34,7 +34,7 @@
         group: root
         mode: 0644
 
-    - name: Download vip rbac manifest to first master
+    - name: Download vip rbac manifest
       ansible.builtin.get_url:
         url: "https://raw.githubusercontent.com/kube-vip/kube-vip/{{ kube_vip_tag_version }}/docs/manifests/rbac.yaml"
         dest: "/var/lib/rancher/k3s/server/manifests/vip-rbac.yaml"
@@ -42,7 +42,7 @@
         group: root
         mode: 0644
 
-    - name: Copy vip manifest to first master
+    - name: Copy vip manifest
       template:
         src: "vip.yaml.j2"
         dest: "/var/lib/rancher/k3s/server/manifests/vip.yaml"
@@ -57,6 +57,7 @@
         --write-kubeconfig-mode=644 \
         --cluster-init \
         --disable servicelb \
+        --disable traefik \
         --disable local-storage \
         --flannel-iface={{ flannel_iface }}
         --node-ip={{ ansible_facts[flannel_iface]["ipv4"]["address"] }}
@@ -81,22 +82,6 @@
       register: control_plane_install
       until: control_plane_install.rc == 0
       retries: 10 # Retry up to 10 times if the installation fails
-
-    # - name: Download vip cloud controller manifest to first master
-    #   ansible.builtin.get_url:
-    #     url: "https://raw.githubusercontent.com/kube-vip/kube-vip/{{ kube_vip_tag_version }}/docs/manifests/controller.yaml"
-    #     dest: "/var/lib/rancher/k3s/server/manifests/vip-cloud-controller.yaml"
-    #     owner: root
-    #     group: root
-    #     mode: 0644
-
-    # - name: Copy vip config map manifest to first master
-    #   template:
-    #     src: "vip-config-map.yaml.j2"
-    #     dest: "/var/lib/rancher/k3s/server/manifests/vip-config-map.yaml"
-    #     owner: root
-    #     group: root
-    #     mode: 0644
 
     - name: Ensure required dependencies are installed.
       ansible.builtin.package:
@@ -133,6 +118,7 @@
         --write-kubeconfig-mode=644 \
         --server https://{{ apiserver_endpoint }}:6443 \
         --disable servicelb \
+        --disable traefik \
         --disable local-storage \
         --flannel-iface={{ flannel_iface }}
         --node-ip={{ ansible_facts[flannel_iface]["ipv4"]["address"] }}
@@ -163,13 +149,13 @@
   import_playbook: tasks/kubernetes/nfs.yml
   tags: ['nfs']
 
-# - name: Set up Cert-Manager.
-#   import_playbook: tasks/kubernetes/cert-manager.yml
-#   tags: ['cert-manager']
+- name: Set up Cert-Manager.
+  import_playbook: tasks/kubernetes/cert-manager.yml
+  tags: ['cert-manager']
 
-# - name: Set up External-DNS.
-#   import_playbook: tasks/kubernetes/external-dns.yml
-#   tags: ['external-dns']
+- name: Set up External-DNS.
+  import_playbook: tasks/kubernetes/external-dns.yml
+  tags: ['external-dns']
 
 - name: Set up Metallb.
   import_playbook: tasks/kubernetes/metallb.yml
@@ -179,13 +165,13 @@
 #   import_playbook: tasks/kubernetes/traefik.yml
 #   tags: ['traefik']
 
-# - name: Set up Ingress-Nginx.
-#   import_playbook: tasks/kubernetes/ingress-nginx.yml
-#   tags: ['ingress-nginx']
+- name: Set up Ingress-Nginx.
+  import_playbook: tasks/kubernetes/ingress-nginx.yml
+  tags: ['ingress-nginx']
 
-# - name: Set up ArgoCD.
-#   import_playbook: tasks/kubernetes/argocd.yml
-#   tags: ['argocd']
+- name: Set up ArgoCD.
+  import_playbook: tasks/kubernetes/argocd.yml
+  tags: ['argocd']
 
 # - name: Set up Rancher.
 #   import_playbook: tasks/kubernetes/rancher.yml

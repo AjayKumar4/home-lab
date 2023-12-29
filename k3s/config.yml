@@ -48,11 +48,11 @@ traefik_dashboard_domain: "traefik.{{ cloudflare_domain }}"
 traefik_dashboard_secert: "YWo6JGFwcjEkU1JiSExhaW0kZHFyVVc0TDN2M3hnZURXSURLVEZ2LgoK"
 
 # ingress_nginx ip for load balancer
-ingress_nginx_load_balancer_ip: "192.168.1.202"
+ingress_nginx_load_balancer_ip: "192.168.1.201"
 ingress_nginx_dashboard_domain: "ingress-nginx.{{ cloudflare_domain }}"
 
 argocd_dashboard_domain: "argocd.{{ cloudflare_domain }}"
-argocd_load_balancer_ip: "192.168.1.203"
+argocd_load_balancer_ip: "192.168.1.202"
 argocd_server_admin_password: "$2a$10$VS18cczTtbUep4iBCs0FdORY9tWiBZ/ew4m62ciotMBWrWeyC.JNO"
 
 rancher_dashboard_domain: "rancher.{{ cloudflare_domain }}"
