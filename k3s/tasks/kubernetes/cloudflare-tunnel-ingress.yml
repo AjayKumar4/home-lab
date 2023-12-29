@@ -1,0 +1,36 @@
+---
+- name: Install Cloudflare Tunnel Ingress
+  hosts: control_plane
+  gather_facts: false
+  become: true
+
+  vars_files:
+    - ../../config.yml
+
+  environment:
+    # The location of the kubeconfig file on the master.
+    K8S_AUTH_KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    PATH: "~/go/bin:{{ ansible_env.PATH }}"
+
+  tasks:
+  - name: Add Cloudflare Tunnel Ingress Helm repository
+    kubernetes.core.helm_repository:
+      name: strrl.dev
+      repo_url: https://helm.strrl.dev
+      state: present
+    
+  - name: Deploy Cloudflare Tunnel Ingress Helm chart
+    kubernetes.core.helm:
+      name: cloudflare-tunnel-ingress-controller
+      chart_ref: strrl.dev/cloudflare-tunnel-ingress-controller
+      release_namespace: cloudflare-tunnel-ingress-controller
+      create_namespace: true
+      update_repo_cache: true
+      wait: yes
+      timeout: "{{ helm_time_out }}"
+      state: present
+      values:
+        cloudflare:
+          accountId: "{{ cloudflare_account_id }}"
+          tunnelName: "{{ cloudflare_tunnel_name }}"
+          apiToken: "{{ cloudflare_api_token }}"

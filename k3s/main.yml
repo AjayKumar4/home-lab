@@ -169,6 +169,10 @@
   import_playbook: tasks/kubernetes/ingress-nginx.yml
   tags: ['ingress-nginx']
 
+- name: Set up Cloudflare-Tunnel-Ingress.
+  import_playbook: tasks/kubernetes/cloudflare-tunnel-ingress.yml
+  tags: ['cloudflare-tunnel-ingress']
+
 - name: Set up ArgoCD.
   import_playbook: tasks/kubernetes/argocd.yml
   tags: ['argocd']
