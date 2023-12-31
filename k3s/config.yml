@@ -36,6 +36,7 @@ cloudflare_api_token: "{{ lookup('env', 'CF_API_TOKEN') }}"
 cloudflare_api_key: "{{ lookup('env', 'CF_API_KEY') }}"
 cloudflare_account_id: "{{ lookup('env', 'CF_ACCOUNT_ID') }}"
 cloudflare_tunnel_name: aj-home-lab
+cloudflare_origin_ca_key: "{{ lookup('env', 'CF_ORIGIN_CA_KEY') }}"
 
 k3s_dns_name: "k3s.{{ cloudflare_domain }}"
 k3s_static_ip: "86.43.201.200"
@@ -52,6 +53,7 @@ traefik_dashboard_secert: "YWo6JGFwcjEkU1JiSExhaW0kZHFyVVc0TDN2M3hnZURXSURLVEZ2L
 # ingress_nginx ip for load balancer
 ingress_nginx_load_balancer_ip: "192.168.1.201"
 ingress_nginx_dashboard_domain: "ingress-nginx.{{ cloudflare_domain }}"
+cname_domain: "ip.{{ cloudflare_domain }}"
 
 argocd_dashboard_domain: "argocd.{{ cloudflare_domain }}"
 argocd_grpc_dashboard_domain: "grpc.argocd.{{ cloudflare_domain }}"

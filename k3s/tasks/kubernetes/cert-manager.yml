@@ -80,27 +80,103 @@
                     - "{{ cloudflare_domain }}"
       state: present
 
-  # - name: Install letsencrypt issuer
+  - name: Clone repository Cloudflare Orgin CA Issuer
+    git:
+      repo: https://github.com/cloudflare/origin-ca-issuer.git
+      dest: /tmp/origin-ca-issuer
+      update: yes
+      force: yes
+
+  - name: Deploy origin-ca-issuer crds
+    ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/crds/
+
+  - name: Deploy origin-ca-issuer rbac
+    ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/rbac/
+
+  - name: Deploy origin-ca-issuer manifests
+    ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/manifests/
+
+  - name: Create Cloudflare CA Origin Key Secert
+    kubernetes.core.k8s: 
+      state: present
+      definition:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: service-key
+          namespace: cert-manager
+        stringData:
+          key: "{{ cloudflare_origin_ca_key }}"
+
+  - name: Create Issuer Secert
+    kubernetes.core.k8s:
+      state: present
+      definition:
+        apiVersion: cert-manager.k8s.cloudflare.com/v1
+        kind: OriginIssuer
+        metadata:
+          name: prod-issuer
+          namespace: cert-manager
+        spec:
+          requestType: OriginECC
+          auth:
+            serviceKeyRef:
+              name: service-key
+              key: key
+
+  - name: Issue Cloudflare Certificate
+    kubernetes.core.k8s:
+      state: present
+      definition:
+        apiVersion: cert-manager.io/v1
+        kind: Certificate
+        metadata:
+          name: cloudflare-certificate
+          namespace: cert-manager
+        spec:
+          secretName: cloudflare-tls
+          dnsNames:
+            - "{{ cloudflare_domain }}"
+            - "*.{{ cloudflare_domain }}"
+          duration: 2160h
+          renewBefore: 24h
+          # Reference the Origin CA Issuer you created above, which must be in the same namespace.
+          issuerRef:
+            group: cert-manager.k8s.cloudflare.com
+            kind: OriginIssuer
+            name: prod-issuer
+
+  # - name: Deploy Ingress using Cloudflare Certificate
   #   kubernetes.core.k8s:
-  #     definition:
-  #       apiVersion: cert-manager.io/v1
-  #       kind: ClusterIssuer
-  #       metadata:
-  #         name: letsencrypt-issuer
-  #         namespace: cert-manager
-  #       spec:
-  #         acme:
-  #           email: "{{ cloudflare_email }}"
-  #           privateKeySecretRef:
-  #             name: letsencrypt-issuer
-  #           # server: https://acme-v02.api.letsencrypt.org/directory
-  #           server: https://acme-staging-v02.api.letsencrypt.org/directory
-  #           solvers:
-  #             - selector: {}
-  #               http01:
-  #                 ingress:
-  #                   class: traefik
   #     state: present
+  #     definition:
+  #       apiVersion: networking/v1
+  #       kind: Ingress
+  #       metadata:
+  #         annotations:
+  #           # Reference the Origin CA Issuer you created above, which must be in the same namespace.
+  #           cert-manager.io/issuer: prod-issuer
+  #           cert-manager.io/issuer-kind: OriginIssuer
+  #           cert-manager.io/issuer-group: cert-manager.k8s.cloudflare.com
+  #         name: example
+  #         namespace: default
+  #       spec:
+  #         rules:
+  #           - host: example.com
+  #             http:
+  #               paths:
+  #                - pathType: Prefix
+  #                  path: /
+  #                  backend:
+  #                     service:
+  #                       name: examplesvc
+  #                       port:
+  #                         number: 80
+  #         tls:
+  #           - hosts:
+  #               - example.com
+  #             secretName: example-tls
+
 
   # - name: Issue Let's Encrypt certificate
   #   kubernetes.core.k8s:
