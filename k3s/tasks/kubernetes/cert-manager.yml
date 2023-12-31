@@ -80,71 +80,71 @@
                     - "{{ cloudflare_domain }}"
       state: present
 
-  - name: Clone repository Cloudflare Orgin CA Issuer
-    git:
-      repo: https://github.com/cloudflare/origin-ca-issuer.git
-      dest: /tmp/origin-ca-issuer
-      update: yes
-      force: yes
+  # - name: Clone repository Cloudflare Orgin CA Issuer
+  #   git:
+  #     repo: https://github.com/cloudflare/origin-ca-issuer.git
+  #     dest: /tmp/origin-ca-issuer
+  #     update: yes
+  #     force: yes
 
-  - name: Deploy origin-ca-issuer crds
-    ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/crds/
+  # - name: Deploy origin-ca-issuer crds
+  #   ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/crds/
 
-  - name: Deploy origin-ca-issuer rbac
-    ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/rbac/
+  # - name: Deploy origin-ca-issuer rbac
+  #   ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/rbac/
 
-  - name: Deploy origin-ca-issuer manifests
-    ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/manifests/
+  # - name: Deploy origin-ca-issuer manifests
+  #   ansible.builtin.shell: kubectl apply -f /tmp/origin-ca-issuer/deploy/manifests/
 
-  - name: Create Cloudflare CA Origin Key Secert
-    kubernetes.core.k8s: 
-      state: present
-      definition:
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: service-key
-          namespace: cert-manager
-        stringData:
-          key: "{{ cloudflare_origin_ca_key }}"
+  # - name: Create Cloudflare CA Origin Key Secert
+  #   kubernetes.core.k8s: 
+  #     state: present
+  #     definition:
+  #       apiVersion: v1
+  #       kind: Secret
+  #       metadata:
+  #         name: service-key
+  #         namespace: cert-manager
+  #       stringData:
+  #         key: "{{ cloudflare_origin_ca_key }}"
 
-  - name: Create Issuer Secert
-    kubernetes.core.k8s:
-      state: present
-      definition:
-        apiVersion: cert-manager.k8s.cloudflare.com/v1
-        kind: OriginIssuer
-        metadata:
-          name: prod-issuer
-          namespace: cert-manager
-        spec:
-          requestType: OriginECC
-          auth:
-            serviceKeyRef:
-              name: service-key
-              key: key
+  # - name: Create Issuer Secert
+  #   kubernetes.core.k8s:
+  #     state: present
+  #     definition:
+  #       apiVersion: cert-manager.k8s.cloudflare.com/v1
+  #       kind: OriginIssuer
+  #       metadata:
+  #         name: prod-issuer
+  #         namespace: cert-manager
+  #       spec:
+  #         requestType: OriginECC
+  #         auth:
+  #           serviceKeyRef:
+  #             name: service-key
+  #             key: key
 
-  - name: Issue Cloudflare Certificate
-    kubernetes.core.k8s:
-      state: present
-      definition:
-        apiVersion: cert-manager.io/v1
-        kind: Certificate
-        metadata:
-          name: cloudflare-certificate
-          namespace: cert-manager
-        spec:
-          secretName: cloudflare-tls
-          dnsNames:
-            - "{{ cloudflare_domain }}"
-            - "*.{{ cloudflare_domain }}"
-          duration: 2160h
-          renewBefore: 24h
-          # Reference the Origin CA Issuer you created above, which must be in the same namespace.
-          issuerRef:
-            group: cert-manager.k8s.cloudflare.com
-            kind: OriginIssuer
-            name: prod-issuer
+  # - name: Issue Cloudflare Certificate
+  #   kubernetes.core.k8s:
+  #     state: present
+  #     definition:
+  #       apiVersion: cert-manager.io/v1
+  #       kind: Certificate
+  #       metadata:
+  #         name: cloudflare-certificate
+  #         namespace: cert-manager
+  #       spec:
+  #         secretName: cloudflare-tls
+  #         dnsNames:
+  #           - "{{ cloudflare_domain }}"
+  #           - "*.{{ cloudflare_domain }}"
+  #         duration: 2160h
+  #         renewBefore: 24h
+  #         # Reference the Origin CA Issuer you created above, which must be in the same namespace.
+  #         issuerRef:
+  #           group: cert-manager.k8s.cloudflare.com
+  #           kind: OriginIssuer
+  #           name: prod-issuer
 
   # - name: Deploy Ingress using Cloudflare Certificate
   #   kubernetes.core.k8s:
@@ -176,7 +176,6 @@
   #           - hosts:
   #               - example.com
   #             secretName: example-tls
-
 
   # - name: Issue Let's Encrypt certificate
   #   kubernetes.core.k8s:

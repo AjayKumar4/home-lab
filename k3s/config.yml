@@ -68,8 +68,6 @@ kube_vip_tag_version: "v0.6.4"
 apiserver_endpoint: "192.168.1.1"
 # interface which will be used  for kube-vip
 kube_vip_iface: "eth0"
-# kube-vip ip range for load balancer
-kube_vip_lb_ip_range: "192.168.1.201-192.168.1.230"
 
 # interface which will be used for flannel
 flannel_iface: "eth0"
