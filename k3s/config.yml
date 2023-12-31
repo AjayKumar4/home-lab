@@ -56,7 +56,7 @@ ingress_nginx_dashboard_domain: "ingress-nginx.{{ cloudflare_domain }}"
 cname_domain: "ip.{{ cloudflare_domain }}"
 
 argocd_dashboard_domain: "argocd.{{ cloudflare_domain }}"
-argocd_grpc_dashboard_domain: "grpc.argocd.{{ cloudflare_domain }}"
+argocd_grpc_dashboard_domain: "argocd-grpc.{{ cloudflare_domain }}"
 argocd_load_balancer_ip: "192.168.1.202"
 argocd_server_admin_password: "$2a$10$VS18cczTtbUep4iBCs0FdORY9tWiBZ/ew4m62ciotMBWrWeyC.JNO"
 

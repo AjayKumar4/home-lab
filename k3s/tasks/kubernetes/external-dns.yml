@@ -29,6 +29,7 @@
       timeout: "{{ helm_time_out }}"
       state: present
       values:
+        policy: sync
         provider: cloudflare
         domainFilters: 
           - "{{ cloudflare_domain }}"
