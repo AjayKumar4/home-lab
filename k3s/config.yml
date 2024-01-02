@@ -36,6 +36,7 @@ cloudflare_api_token: "{{ lookup('env', 'CF_API_TOKEN') }}"
 cloudflare_api_key: "{{ lookup('env', 'CF_API_KEY') }}"
 cloudflare_account_id: "{{ lookup('env', 'CF_ACCOUNT_ID') }}"
 cloudflare_tunnel_name: aj-home-lab
+cloudflare_tunnel_id: "{{ lookup('env', 'CF_TUNNEL_ID') }}"
 cloudflare_origin_ca_key: "{{ lookup('env', 'CF_ORIGIN_CA_KEY') }}"
 
 k3s_dns_name: "k3s.{{ cloudflare_domain }}"
@@ -75,15 +76,23 @@ flannel_iface: "eth0"
 minio_domain: "s3.{{ cloudflare_domain }}"
 minio_admin: "{{ cloudflare_email }}"
 minio_password: "{{ ansible_sudo_pass }}"
-minio_url: "http://127.0.0.1:9091"
+minio_url: "https://127.0.0.1:9091"
 minio_site_region: "eu-west-1"
 minio_cert_org: "AjayKumar"
 minio_cert_org_unit: "home-lab"
 minio_cert_country: "IE"
 minio_cert_province: "Galway"
 minio_cert_location: "Galway"
-minio_backup_name:
-  - k3s-longhorn
-  - k3s-velero
-  - restic
-
+minio_config:
+  - bucket: k3s-longhorn
+    user: longhorn
+    password: "{{ ansible_sudo_pass }}"
+  - bucket: k3s-velero
+    user: velero
+    password: "{{ ansible_sudo_pass }}"
+  - bucket: restic
+    user: restic
+    password: "{{ ansible_sudo_pass }}"
+minio_certs:
+  - public.crt
+  - private.key
