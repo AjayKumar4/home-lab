@@ -71,3 +71,19 @@ kube_vip_iface: "eth0"
 
 # interface which will be used for flannel
 flannel_iface: "eth0"
+
+minio_domain: "s3.{{ cloudflare_domain }}"
+minio_admin: "{{ cloudflare_email }}"
+minio_password: "{{ ansible_sudo_pass }}"
+minio_url: "http://127.0.0.1:9091"
+minio_site_region: "eu-west-1"
+minio_cert_org: "AjayKumar"
+minio_cert_org_unit: "home-lab"
+minio_cert_country: "IE"
+minio_cert_province: "Galway"
+minio_cert_location: "Galway"
+minio_backup_name:
+  - k3s-longhorn
+  - k3s-velero
+  - restic
+

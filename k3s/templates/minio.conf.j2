@@ -1,0 +1,14 @@
+# Minio local volumes.
+MINIO_VOLUMES="/{{ storage_zfs_pool_name }}/{{ storage_nfs_share_name }}/minio"
+
+# Minio cli options.
+MINIO_OPTS="--address :9091 --console-address :9092 --certs-dir /etc/minio/ssl"
+
+# Access Key of the server.
+MINIO_ROOT_USER="{{ minio_admin }}"
+# Secret key of the server.
+MINIO_ROOT_PASSWORD="{{ minio_password }}"
+# Minio server region
+MINIO_SITE_REGION="{{ minio_site_region }}"
+# Minio server URL
+MINIO_SERVER_URL="{{ minio_url }}"

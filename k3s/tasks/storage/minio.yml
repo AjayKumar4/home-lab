@@ -1,0 +1,154 @@
+---
+- name: Ensure ZFS NFS OpenSsl is installed.
+  ansible.builtin.apt:
+    name:
+      - zfsutils-linux
+      - nfs-kernel-server
+      - openssl
+    state: present
+
+- name: Create MinIO group 
+  ansible.builtin.shell: >-
+    if ! getent group minio; then
+      groupadd minio
+    fi
+    
+- name: Create MinIO user
+  ansible.builtin.shell: >-
+    if ! getent passwd minio; then
+      useradd minio -g minio
+    fi
+
+- name: Create directory for Minio data
+  ansible.builtin.file:
+    path: /{{ storage_zfs_pool_name }}/{{ storage_nfs_share_name }}/minio
+    state: directory
+    mode: 0755
+
+- name: Change Minio SSL directory Permission
+  ansible.builtin.shell: >- 
+    chown -R minio:minio /{{ storage_zfs_pool_name }}/{{ storage_nfs_share_name }}/minio
+
+- name: Create Minio configuration directory
+  ansible.builtin.file:
+    path: /etc/minio
+    state: directory
+    mode: 0755
+
+- name: Create Minio SSL directory
+  ansible.builtin.file:
+    path: /etc/minio/ssl
+    state: directory
+    mode: 0755
+
+- name: Create Minio policy directory
+  ansible.builtin.file:
+    path: /etc/minio/policy
+    state: directory
+    mode: 0755
+
+- name: Generate root CA key
+  ansible.builtin.shell: >- 
+    openssl req -x509 \
+      -sha256 \
+      -nodes \
+      -newkey rsa:4096 \
+      -subj "/CN={{ minio_cert_org }} CA" \
+      -keyout /etc/minio/ssl/rootCA.key \
+      -out /etc/minio/ssl/rootCA.crt
+    
+- name: Create minio key
+  ansible.builtin.shell: >- 
+    openssl req -new \
+      -nodes \
+      -newkey rsa:4096 \
+      -keyout /etc/minio/ssl/private.key \
+      -out /etc/minio/ssl/minio.csr \
+      -batch \
+      -subj "/C={{ minio_cert_country }}/ST={{ minio_cert_province }}/L={{ minio_cert_location }}/O={{ minio_cert_org }} CA/OU={{ minio_cert_org_unit }}/CN={{ minio_domain }}"
+
+- name: Create domain.ext file
+  copy:
+    content: "subjectAltName=DNS:{{ minio_domain }}"
+    dest: /etc/minio/ssl/domain.ext
+    
+- name: Generate minio certificate
+  ansible.builtin.shell: >- 
+    openssl x509 \
+      -req \
+      -days 365000 \
+      -set_serial 01 \
+      -extfile /etc/minio/ssl/domain.ext \
+      -in /etc/minio/ssl/minio.csr \
+      -out /etc/minio/ssl/public.crt \
+      -CA /etc/minio/ssl/rootCA.crt \
+      -CAkey /etc/minio/ssl/rootCA.key
+
+- name: Change Minio SSL directory Permission
+  ansible.builtin.shell: >- 
+    chmod -R 755 /etc/minio/ssl
+
+- name: Determine system architecture
+  ansible.builtin.shell: dpkg --print-architecture
+  register: arch      
+    
+- name: Download Minio server binary
+  ansible.builtin.get_url:
+    url: https://dl.min.io/server/minio/release/linux-{{ arch.stdout }}/minio
+    dest: /usr/local/bin/minio
+    mode: 0755
+
+- name: Download Minio client binary
+  ansible.builtin.get_url:
+    url: https://dl.min.io/client/mc/release/linux-{{ arch.stdout }}/mc
+    dest: /usr/local/bin/mc
+    mode: 0755
+
+- name: Configure Minio server
+  ansible.builtin.template:
+    src: minio.conf.j2
+    dest: /etc/minio/minio.conf
+    mode: 0755
+
+- name: Service Minio server
+  ansible.builtin.template:
+    src: minio.service.j2
+    dest: /etc/systemd/system/minio.service
+    mode: 0755
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable Minio service
+  ansible.builtin.systemd:
+    name: minio
+    enabled: yes
+
+- name: Start Minio service
+  ansible.builtin.systemd:
+    name: minio
+    state: started
+
+- name: Set minio alias
+  ansible.builtin.shell: >- 
+    mc alias set {{ minio_cert_org_unit }} {{ minio_url }} {{ minio_admin }} {{ minio_password }}
+
+- name: Create minio buckets
+  ansible.builtin.shell: >- 
+    for bucket_name in {{ minio_backup_name }}; do mc mb {{ minio_cert_org_unit }}/$bucket_name; done
+
+- name: Create minio users
+  ansible.builtin.shell: >- 
+    mc admin user add {{ minio_cert_org_unit }} {{ minio_admin }} {{ minio_password }}
+
+- name: Copy vip manifest
+  template:
+    src: "user_policy.json.j2"
+    dest: "/etc/minio/policy/user_policy.json"
+    mode: 0644 
+
+- name: Create minio users
+  ansible.builtin.shell: >- 
+    mc admin policy add {{ minio_cert_org_unit }} {{ minio_admin }} /etc/minio/policy/user_policy.json
+
