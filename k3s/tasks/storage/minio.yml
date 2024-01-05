@@ -1,19 +1,20 @@
 ---
-- name: Create MinIO group 
-  ansible.builtin.shell: >-
-    if ! getent group minio; then
-      groupadd minio
-    fi
-    
-- name: Create MinIO user
-  ansible.builtin.shell: >-
-    if ! getent passwd minio; then
-      useradd minio -g minio
-    fi
+- name: Ensure group Minio exists
+  ansible.builtin.group:
+    name: minio
+    state: present
 
-- name: Add user to MinIo group
-  ansible.builtin.shell: >-
-    usermod -aG minio {{ ansible_user }}
+- name: Add the user 'minio' with a specific uid and a primary group of 'minio'
+  ansible.builtin.user:
+    name: minio
+    group: minio
+    shell: /bin/bash
+
+- name: Add the user "{{ ansible_user }}" with a specific uid and a primary group of 'minio'
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    group: minio
+    shell: /bin/bash
 
 - name: Create directory for Minio data
   ansible.builtin.file:

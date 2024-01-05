@@ -103,3 +103,5 @@ minio_client_certs:
 
 vault_version: 1.15.4
 vault_domain: "vault.{{ cloudflare_domain }}"
+vault_secret_shares: 3
+vault_secret_threshold: 3

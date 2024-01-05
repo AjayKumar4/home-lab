@@ -1,25 +1,20 @@
 ---
-- name: Ensure ZFS NFS OpenSsl is installed.
-  ansible.builtin.apt:
-    name:
-      - jq
+- name: Ensure group Vault exists
+  ansible.builtin.group:
+    name: vault
     state: present
 
-- name: Create Vault group 
-  ansible.builtin.shell: >-
-    if ! getent group vault; then
-      groupadd vault
-    fi
-    
-- name: Create Vault user
-  ansible.builtin.shell: >-
-    if ! getent passwd vault; then
-      useradd vault -g vault -r -s /sbin/nologin
-    fi
+- name: Add the user 'vault' with a specific uid and a primary group of 'vault'
+  ansible.builtin.user:
+    name: vault
+    group: vault
+    shell: /bin/bash
 
-- name: Add user to Vault group
-  ansible.builtin.shell: >-
-    usermod -aG vault {{ ansible_user }}
+- name: Add the user "{{ ansible_user }}" with a specific uid and a primary group of 'vault'
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    group: vault
+    shell: /bin/bash
 
 - name: Create directory for Vault data
   ansible.builtin.file:
@@ -190,45 +185,76 @@
     state: started
 
 - name: Check Vault server status
-  ansible.builtin.shell: >- 
-    export VAULT_ADDR=https://127.0.0.1:8200
-    export VAULT_CACERT=/etc/vault/tls/vault-ca.crt
-    vault status
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/seal-status
+    return_content: true
+    validate_certs: false
   register: vault_status
 
-- name: Display Vault status output
-  debug:
-    var: vault_status.stdout
+# - name: Check Vault seal status content
+#   debug:
+#     var: "{{ vault_status.json | string }}"
 
-- name: Initialize Vault Operator
-  ansible.builtin.shell: >- 
-    vault operator init -key-shares=1 -key-threshold=1 -format=json > /etc/vault/unseal.json
+- name: Execute Vault operator init
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/init
+    method: POST
+    body: >-
+      {{ {"secret_shares": vault_secret_shares,"secret_threshold": vault_secret_threshold} | to_json | string }}
+    headers:
+      Content-Type: application/json
+    return_content: yes
+    validate_certs: false
+  register: vault_init
+  when: vault_status.json.initialized == false
+
+# - name: Display Vault init output
+#   debug:
+#     var: "{{ vault_init.json | string }}"
+#   when: vault_status.json.initialized == false
+
+- name: Create unseal.json file
+  ansible.builtin.copy:
+    dest: /etc/vault/unseal.json
+    content: |
+      {{ vault_init.json }}
+    mode: 0644
+  when: vault_status.json.initialized == false
 
 - name: Check Vault server status
-  ansible.builtin.shell: >- 
-    export VAULT_ADDR=https://127.0.0.1:8200
-    export VAULT_CACERT=/etc/vault/tls/vault-ca.crt
-    vault status
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/seal-status
+    return_content: true
+    validate_certs: false
   register: vault_status
 
-- name: Display Vault status output
-  debug:
-    var: vault_status.stdout
+# - name: Check Vault seal status content
+#   debug:
+#     var: "{{ vault_status.json | string }}"
 
-- name: Check Vault server status
-  ansible.builtin.shell: >- 
-    vault operator unseal $(jq -r '.unseal_keys_b64[0]' /etc/vault/unseal.json)
+- name: Execute Vault operator unseal
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/unseal
+    method: POST
+    body: >-
+      {{ {"key": item} | to_json | string }}
+    headers:
+      Content-Type: application/json
+    return_content: yes
+    validate_certs: false
+  register: vault_unseal
+  with_items: "{{ vault_init.json.keys_base64 | list }}"
+  when: 
+    - vault_status.json.sealed == true
+    - vault_status.json.initialized == true
 
-- name: Check Vault server status
-  ansible.builtin.shell: >- 
-    export VAULT_ADDR=https://127.0.0.1:8200
-    export VAULT_CACERT=/etc/vault/tls/vault-ca.crt
-    vault status
-  register: vault_status
-
-- name: Display Vault status output
-  debug:
-    var: vault_status.stdout
+# - name: Display Vault unseal output
+#   debug:
+#     var: "{{ item.json | string }}"
+#   with_items: "{{ vault_unseal.results | list }}"
+#   when: 
+#     - vault_status.json.sealed == true
+#     - vault_status.json.initialized == true    
 
 - name: Create vault-unseal script file /etc/vault/vault-unseal.sh
   ansible.builtin.template:
@@ -257,3 +283,77 @@
   ansible.builtin.systemd:
     name: vault-unseal
     state: started
+
+- name: Check Vault server status
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/seal-status
+    return_content: true
+    validate_certs: false
+  register: vault_status
+
+- name: Check Vault seal status content
+  debug:
+    var: "{{ vault_status.json | string }}"
+
+- name: Execute Vault operator enable secrets engine
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/mounts/secret
+    method: POST
+    body: >-
+      {{ {"type": "kv","options": {"version": 2}} | to_json | string }}
+    headers:
+      Content-Type: application/json
+      X-Vault-Token: "{{ vault_init.json.root_token }}"
+    return_content: yes
+    validate_certs: false
+    status_code: [ 200, 204 ]
+  register: vault_secert
+  when: 
+    - vault_status.json.sealed == false
+    - vault_status.json.initialized == true
+
+- name: Execute Vault operator readwrite policy
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/policy/readwrite
+    method: POST
+    body: >-
+      {{ {"policy": "path 'secret/*' {capabilities = [ 'create', 'read', 'update', 'delete', 'list', 'patch' ]}"} | to_json | string }}
+    headers:
+      Content-Type: application/json
+      X-Vault-Token: "{{ vault_init.json.root_token }}"
+    return_content: yes
+    validate_certs: false
+  register: vault_policy
+  when: 
+    - vault_status.json.sealed == false
+    - vault_status.json.initialized == true
+
+- name: Check Vault policy status content
+  debug:
+    var: "{{ vault_policy.json | string }}"
+  when: 
+    - vault_status.json.sealed == false
+    - vault_status.json.initialized == true
+
+- name: Execute Vault operator read policy
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8200/v1/sys/policy/read
+    method: POST
+    body: >-
+      {{ {"policy": "path 'secret/*' {capabilities = [ 'read' ]}"} | to_json | string }}
+    headers:
+      Content-Type: application/json
+      X-Vault-Token: "{{ vault_init.json.root_token }}"
+    return_content: yes
+    validate_certs: false
+  register: vault_policy
+  when: 
+    - vault_status.json.sealed == false
+    - vault_status.json.initialized == true
+
+- name: Check Vault policy status content
+  debug:
+    var: "{{ vault_policy.json | string }}"
+  when: 
+    - vault_status.json.sealed == false
+    - vault_status.json.initialized == true
