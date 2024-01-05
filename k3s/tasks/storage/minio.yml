@@ -1,12 +1,4 @@
 ---
-- name: Ensure ZFS NFS OpenSsl is installed.
-  ansible.builtin.apt:
-    name:
-      - zfsutils-linux
-      - nfs-kernel-server
-      - openssl
-    state: present
-
 - name: Create MinIO group 
   ansible.builtin.shell: >-
     if ! getent group minio; then
@@ -19,32 +11,40 @@
       useradd minio -g minio
     fi
 
+- name: Add user to MinIo group
+  ansible.builtin.shell: >-
+    usermod -aG minio {{ ansible_user }}
+
 - name: Create directory for Minio data
   ansible.builtin.file:
     path: /{{ storage_zfs_pool_name }}/{{ storage_nfs_share_name }}/minio
     state: directory
+    owner: minio
+    group: minio
     mode: 0755
-
-- name: Change Minio SSL directory Permission
-  ansible.builtin.shell: >- 
-    chown -R minio:minio /{{ storage_zfs_pool_name }}/{{ storage_nfs_share_name }}/minio
 
 - name: Create Minio configuration directory
   ansible.builtin.file:
     path: /etc/minio
-    state: directory
+    state: directory    
+    owner: minio
+    group: minio
     mode: 0755
 
 - name: Create Minio SSL directory
   ansible.builtin.file:
-    path: /etc/minio/ssl
-    state: directory
+    path: /etc/minio/ssl/CAs
+    state: directory    
+    owner: minio
+    group: minio
     mode: 0755
 
 - name: Create Minio policy directory
   ansible.builtin.file:
     path: /etc/minio/policy
-    state: directory
+    state: directory    
+    owner: minio
+    group: minio
     mode: 0755
 
 - name: Determine system architecture
@@ -63,33 +63,88 @@
     dest: /usr/local/bin/mc
     mode: 0755
 
-- name: Download Minio client binary
-  ansible.builtin.get_url:
-    url: https://github.com/minio/certgen/releases/latest/download/certgen-linux-{{ arch.stdout }}
-    dest: /usr/local/bin/certgen
-    mode: 0755
-
-- name: Create TLS cert for minio
+- name: Create a self-signed CA key and self-signed certificate
   ansible.builtin.shell: >- 
-    certgen -host \
-      "localhost,{{ cloudflare_domain }},*.{{ cloudflare_domain }},{{ minio_domain }}, \
-      127.0.0.1, \
-      {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}, \
-      {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}, \
-      {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}" 
+    openssl req -x509 \
+      -sha256 \
+      -nodes \
+      -newkey rsa:4096 \
+      -subj "/CN={{ cert_org }} CA" \
+      -keyout rootCA.key -out rootCA.crt
+  args:
+    chdir: /etc/minio/ssl/
 
-- name: Copy generated TLS certificates to /etc/minio/ssl
+- name: Create a TLS certificate for minio server 
+  ansible.builtin.shell: >- 
+    openssl req -new -nodes -newkey rsa:4096 \
+      -keyout minio.key \
+      -out minio.csr \
+      -batch \
+      -subj "/C={{ cert_country }}/ST={{ cert_province }}/L={{ cert_location }}/O={{ cert_org }} CA/OU={{ cert_org_unit }}/CN={{ minio_domain }}"
+  args:
+    chdir: /etc/minio/ssl/
+
+- name: Create domain.ext file
   ansible.builtin.copy:
-    src: "{{ item }}"
-    dest: "/etc/minio/ssl/{{ item }}"
+    dest: /etc/minio/ssl/domain.ext
+    content: |
+      subjectAltName = @alt_names
+      [alt_names]
+      IP.1 = 127.0.0.1
+      IP.2 = {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}
+      IP.3 = {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}
+      IP.4 = {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}
+      DNS.1 = localhost
+      DNS.2 = {{ inventory_hostname }}
+      DNS.3 = {{ inventory_hostname }}.local
+      DNS.4 = {{ cloudflare_domain }}
+      DNS.5 = *.{{ cloudflare_domain }}
+      DNS.6 = {{ minio_domain }}
+
+- name: Create a TLS certificate for minio server signed using the custom CA
+  ansible.builtin.shell: >- 
+     openssl x509 -req -days 365000 -set_serial 01 \
+       -extfile domain.ext \
+       -in minio.csr \
+       -out minio.crt \
+       -CA rootCA.crt \
+       -CAkey rootCA.key
+  args:
+    chdir: /etc/minio/ssl/
+
+- name: Copy public certificate minio.crt as /etc/minio/ssl/public.crt
+  ansible.builtin.copy:
+    src: /etc/minio/ssl/minio.crt
+    dest: /etc/minio/ssl/public.crt
     remote_src: yes
+    owner: minio
+    group: minio
     mode: 0644
-  with_items: "{{ minio_certs }}"
+
+- name: Copy private key minio.key as /etc/minio/ssl/private.key
+  ansible.builtin.copy:
+    src: /etc/minio/ssl/minio.key
+    dest: /etc/minio/ssl/private.key
+    remote_src: yes
+    owner: minio
+    group: minio
+    mode: 0644
+
+- name: Copy public certificate minio.crt as /etc/minio/ssl/public.crt
+  ansible.builtin.copy:
+    src: /etc/minio/ssl/rootCA.crt
+    dest: /etc/minio/ssl/CAs/myCA.crt
+    remote_src: yes
+    owner: minio
+    group: minio
+    mode: 0644
 
 - name: Configure Minio server
   ansible.builtin.template:
     src: minio.conf.j2
     dest: /etc/minio/minio.conf
+    owner: minio
+    group: minio
     mode: 0755
 
 - name: Service Minio server
@@ -114,16 +169,16 @@
 
 - name: Set minio alias
   ansible.builtin.shell: >- 
-    mc alias set {{ minio_cert_org_unit }} {{ minio_url }} {{ minio_admin }} {{ minio_password }} --insecure
+    mc alias set {{ inventory_hostname }} {{ minio_url }} {{ minio_admin }} {{ minio_password }}  --insecure
 
 - name: Create minio buckets
   ansible.builtin.shell: >- 
-    mc stat {{ minio_cert_org_unit }}/{{ item.bucket }} --insecure || mc mb {{ minio_cert_org_unit }}/{{ item.bucket }} --insecure
+    mc stat {{ inventory_hostname }}/{{ item.bucket }} --insecure || mc mb {{ inventory_hostname }}/{{ item.bucket }} --insecure
   loop: "{{ minio_config }}"
 
 - name: Create minio users
   ansible.builtin.shell: >- 
-    mc admin user add {{ minio_cert_org_unit }} {{ item.user }} {{ item.password }} --insecure
+    mc admin user add {{ inventory_hostname }} {{ item.user }} {{ item.password }} --insecure
   loop: "{{ minio_config }}"
 
 - name: Copy minio user policy
@@ -135,6 +190,6 @@
 
 - name: Create minio users
   ansible.builtin.shell: >- 
-    mc admin policy create {{ minio_cert_org_unit }} {{ item.user }} /etc/minio/policy/{{ item.user }}.json --insecure
+    mc admin policy create {{ inventory_hostname }} {{ item.user }} /etc/minio/policy/{{ item.user }}.json --insecure
   loop: "{{ minio_config }}"
 

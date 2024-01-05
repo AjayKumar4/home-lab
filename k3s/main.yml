@@ -15,6 +15,11 @@
         name: minio
         state: restarted
 
+    - name: restart vault
+      ansible.builtin.service:
+        name: vault
+        state: restarted
+
   vars_files:
     - config.yml
 
@@ -22,8 +27,11 @@
 #     - name: Set up storage.
 #       include_tasks: tasks/storage/{{ storage_type }}.yml
 
-    - name: Set up minIo.
-      include_tasks: tasks/storage/minio.yml
+    # - name: Set up minIo.
+    #   include_tasks: tasks/storage/minio.yml
+
+    - name: Set up Vault.
+      include_tasks: tasks/storage/vault.yml
 
 # - name: Configure the control plane.
 #   hosts: control_plane

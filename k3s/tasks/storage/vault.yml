@@ -1,0 +1,259 @@
+---
+- name: Ensure ZFS NFS OpenSsl is installed.
+  ansible.builtin.apt:
+    name:
+      - jq
+    state: present
+
+- name: Create Vault group 
+  ansible.builtin.shell: >-
+    if ! getent group vault; then
+      groupadd vault
+    fi
+    
+- name: Create Vault user
+  ansible.builtin.shell: >-
+    if ! getent passwd vault; then
+      useradd vault -g vault -r -s /sbin/nologin
+    fi
+
+- name: Add user to Vault group
+  ansible.builtin.shell: >-
+    usermod -aG vault {{ ansible_user }}
+
+- name: Create directory for Vault data
+  ansible.builtin.file:
+    path: /{{ storage_zfs_pool_name }}/{{ storage_nfs_share_name }}/vault
+    state: directory
+    owner: vault
+    group: vault
+    mode: 0750
+
+- name: Create Vault configuration directory
+  ansible.builtin.file:
+    path: /etc/vault
+    state: directory    
+    owner: vault
+    group: vault
+    mode: 0750
+
+- name: Create Vault SSL directory
+  ansible.builtin.file:
+    path: /etc/vault/tls
+    state: directory    
+    owner: vault
+    group: vault
+    mode: 0750
+
+- name: Create Vault policy directory
+  ansible.builtin.file:
+    path: /etc/vault/policy
+    state: directory    
+    owner: vault
+    group: vault
+    mode: 0750
+
+- name: Create Vault plugin directory
+  ansible.builtin.file:
+    path: /etc/vault/plugin
+    state: directory    
+    owner: vault
+    group: vault
+    mode: 0750
+
+- name: Create Vault log directory
+  ansible.builtin.file:
+    path: /var/log/vault
+    state: directory    
+    owner: vault
+    group: vault
+    mode: 0750
+
+- name: Determine system architecture
+  ansible.builtin.shell: dpkg --print-architecture
+  register: arch      
+
+- name: Download Vault binary
+  ansible.builtin.get_url:
+    url: https://releases.hashicorp.com/vault/{{ vault_version }}/vault_{{ vault_version }}_linux_{{ arch.stdout }}.zip
+    dest: /tmp/vault_{{ vault_version }}_linux_{{ arch.stdout }}.zip
+
+- name: Unzip Vault binary
+  ansible.builtin.unarchive:
+    src: /tmp/vault_{{ vault_version }}_linux_{{ arch.stdout }}.zip
+    dest: /usr/local/bin
+    remote_src: yes
+    mode: 755
+ 
+- name: Create a self-signed CA key and self-signed certificate
+  ansible.builtin.shell: >- 
+    openssl req -x509 \
+      -sha256 \
+      -nodes \
+      -newkey rsa:4096 \
+      -subj "/CN={{ cert_org }} CA" \
+      -keyout rootCA.key -out rootCA.crt
+  args:
+    chdir: /etc/vault/tls
+
+- name: Create a TLS certificate for Vault server 
+  ansible.builtin.shell: >- 
+    openssl req -new -nodes -newkey rsa:4096 \
+      -keyout vault.key \
+      -out vault.csr \
+      -batch \
+      -subj "/C={{ cert_country }}/ST={{ cert_province }}/L={{ cert_location }}/O={{ cert_org }} CA/OU={{ cert_org_unit }}/CN={{ vault_domain }}"
+  args:
+    chdir: /etc/vault/tls
+
+- name: Create domain.ext file
+  ansible.builtin.copy:
+    dest: /etc/vault/tls/domain.ext
+    content: |
+      subjectAltName = @alt_names
+      [alt_names]
+      IP.1 = 127.0.0.1
+      IP.2 = {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}
+      IP.3 = {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}
+      IP.4 = {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[inventory_hostname]['ip_host_octet'] }}
+      DNS.1 = localhost
+      DNS.2 = {{ inventory_hostname }}
+      DNS.3 = {{ inventory_hostname }}.local
+      DNS.4 = {{ cloudflare_domain }}
+      DNS.5 = *.{{ cloudflare_domain }}
+      DNS.6 = {{ vault_domain }}
+
+- name: Create a TLS certificate for Vault server signed using the custom CA
+  ansible.builtin.shell: >- 
+     openssl x509 -req -days 365000 -set_serial 01 \
+       -extfile domain.ext \
+       -in vault.csr \
+       -out vault.crt \
+       -CA rootCA.crt \
+       -CAkey rootCA.key
+  args:
+    chdir: /etc/vault/tls
+
+- name: Copy public certificate vault.crt as /etc/vault/tls/vault.crt
+  ansible.builtin.copy:
+    src: /etc/vault/tls/vault.crt
+    dest: /etc/vault/tls/vault.crt
+    remote_src: yes
+    owner: vault
+    group: vault
+    mode: 0644
+
+- name: Copy private key vault.key as /etc/vault/tls/vault.key
+  ansible.builtin.copy:
+    src: /etc/vault/tls/vault.key
+    dest: /etc/vault/tls/vault.key
+    remote_src: yes
+    owner: vault
+    group: vault
+    mode: 0644
+
+- name: Copy CA certificate rootCA.crt as /etc/vault/tls/vault-ca.crt
+  ansible.builtin.copy:
+    src: /etc/vault/tls/rootCA.crt
+    dest: /etc/vault/tls/vault-ca.crt
+    remote_src: yes
+    owner: vault
+    group: vault
+    mode: 0644
+
+- name: Create vault config file /etc/vault/vault_main.hcl
+  ansible.builtin.template:
+    src: vault_main.hcl.j2
+    dest: /etc/vault/vault_main.hcl
+    owner: vault
+    group: vault
+    mode: 0755
+
+- name: Create systemd vault service file /etc/systemd/system/vault.service
+  ansible.builtin.template:
+    src: vault.service.j2
+    dest: /etc/systemd/system/vault.service
+    mode: 0755
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable Vault service
+  ansible.builtin.systemd:
+    name: vault
+    enabled: yes
+
+- name: Start Vault service
+  ansible.builtin.systemd:
+    name: vault
+    state: started
+
+- name: Check Vault server status
+  ansible.builtin.shell: >- 
+    export VAULT_ADDR=https://127.0.0.1:8200
+    export VAULT_CACERT=/etc/vault/tls/vault-ca.crt
+    vault status
+  register: vault_status
+
+- name: Display Vault status output
+  debug:
+    var: vault_status.stdout
+
+- name: Initialize Vault Operator
+  ansible.builtin.shell: >- 
+    vault operator init -key-shares=1 -key-threshold=1 -format=json > /etc/vault/unseal.json
+
+- name: Check Vault server status
+  ansible.builtin.shell: >- 
+    export VAULT_ADDR=https://127.0.0.1:8200
+    export VAULT_CACERT=/etc/vault/tls/vault-ca.crt
+    vault status
+  register: vault_status
+
+- name: Display Vault status output
+  debug:
+    var: vault_status.stdout
+
+- name: Check Vault server status
+  ansible.builtin.shell: >- 
+    vault operator unseal $(jq -r '.unseal_keys_b64[0]' /etc/vault/unseal.json)
+
+- name: Check Vault server status
+  ansible.builtin.shell: >- 
+    export VAULT_ADDR=https://127.0.0.1:8200
+    export VAULT_CACERT=/etc/vault/tls/vault-ca.crt
+    vault status
+  register: vault_status
+
+- name: Display Vault status output
+  debug:
+    var: vault_status.stdout
+
+- name: Create vault-unseal script file /etc/vault/vault-unseal.sh
+  ansible.builtin.template:
+    src: vault-unseal.sh.j2
+    dest: /etc/vault/vault-unseal.sh
+    owner: vault
+    group: vault
+    mode: 0755
+
+- name: Create systemd vault-unseal service file /etc/systemd/system/vault-unseal.service
+  ansible.builtin.template:
+    src: vault-unseal.service.j2
+    dest: /etc/systemd/system/vault-unseal.service
+    mode: 0755
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: yes
+
+- name: Enable Vault service
+  ansible.builtin.systemd:
+    name: vault-unseal
+    enabled: yes
+
+- name: Start Vault service
+  ansible.builtin.systemd:
+    name: vault-unseal
+    state: started
