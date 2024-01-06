@@ -291,9 +291,9 @@
     validate_certs: false
   register: vault_status
 
-- name: Check Vault seal status content
-  debug:
-    var: "{{ vault_status.json | string }}"
+# - name: Check Vault seal status content
+#   debug:
+#     var: "{{ vault_status.json | string }}"
 
 - name: Execute Vault operator enable secrets engine
   ansible.builtin.uri:
@@ -312,48 +312,62 @@
     - vault_status.json.sealed == false
     - vault_status.json.initialized == true
 
+# - name: Check Vault secert status content
+#   debug:
+#     var: "{{ vault_secert | string }}"
+#   when: 
+#     - vault_status.json.sealed == false
+#     - vault_status.json.initialized == true
+
 - name: Execute Vault operator readwrite policy
   ansible.builtin.uri:
     url: https://127.0.0.1:8200/v1/sys/policy/readwrite
     method: POST
     body: >-
-      {{ {"policy": "path 'secret/*' {capabilities = [ 'create', 'read', 'update', 'delete', 'list', 'patch' ]}"} | to_json | string }}
+      {
+        "policy": "path \"secret/*\"\n{\n  capabilities = [\"create\", \"read\", \"update\", \"delete\", \"list\", \"patch\"]\n}"
+      }
     headers:
       Content-Type: application/json
       X-Vault-Token: "{{ vault_init.json.root_token }}"
     return_content: yes
     validate_certs: false
+    status_code: [ 200, 204 ]
   register: vault_policy
   when: 
     - vault_status.json.sealed == false
     - vault_status.json.initialized == true
 
-- name: Check Vault policy status content
-  debug:
-    var: "{{ vault_policy.json | string }}"
-  when: 
-    - vault_status.json.sealed == false
-    - vault_status.json.initialized == true
+# - name: Check Vault policy status content
+#   debug:
+#     var: "{{ vault_policy | string }}"
+#   when: 
+#     - vault_status.json.sealed == false
+#     - vault_status.json.initialized == true
 
 - name: Execute Vault operator read policy
   ansible.builtin.uri:
     url: https://127.0.0.1:8200/v1/sys/policy/read
     method: POST
     body: >-
-      {{ {"policy": "path 'secret/*' {capabilities = [ 'read' ]}"} | to_json | string }}
+      {
+        "policy": "path \"secret/*\"\n{\n  capabilities = [\"read\"]\n}"
+      }
     headers:
       Content-Type: application/json
       X-Vault-Token: "{{ vault_init.json.root_token }}"
     return_content: yes
     validate_certs: false
+    status_code: [ 200, 204 ]
   register: vault_policy
   when: 
     - vault_status.json.sealed == false
     - vault_status.json.initialized == true
 
-- name: Check Vault policy status content
-  debug:
-    var: "{{ vault_policy.json | string }}"
-  when: 
-    - vault_status.json.sealed == false
-    - vault_status.json.initialized == true
+# - name: Check Vault policy status content
+#   debug:
+#     var: "{{ vault_policy | string }}"
+#   when: 
+#     - vault_status.json.sealed == false
+#     - vault_status.json.initialized == true
+
