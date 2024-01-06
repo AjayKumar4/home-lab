@@ -1,0 +1,17 @@
+---
+- name: Configure minio node.
+  hosts: minio
+  gather_facts: true
+  become: true
+
+  vars_files:
+    - config.yml
+
+  tasks:
+    - name: Set up Minio.
+      block:
+        - name: Set up and configure Minio
+          include_tasks: tasks/storage/minio.yml
+      rescue:
+        - name: cleanup Minio
+          include_tasks: tasks/storage/minio-cleanup.yml

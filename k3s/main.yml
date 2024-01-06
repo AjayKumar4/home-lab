@@ -10,195 +10,179 @@
         name: nfs-server
         state: restarted
 
-    - name: restart minio
-      ansible.builtin.service:
-        name: minio
-        state: restarted
+  vars_files:
+    - config.yml
 
-    - name: restart vault
-      ansible.builtin.service:
-        name: vault
-        state: restarted
+  tasks:
+    - name: Set up storage.
+      include_tasks: tasks/storage/{{ storage_type }}.yml
+
+- name: Configure the control plane.
+  hosts: control_plane
+  gather_facts: true
+  become: true
 
   vars_files:
     - config.yml
 
   tasks:
-#     - name: Set up storage.
-#       include_tasks: tasks/storage/{{ storage_type }}.yml
+    - name: Create manifests directory
+      file:
+        path: /var/lib/rancher/k3s/server/manifests
+        state: directory
+        owner: root
+        group: root
+        mode: 0644
 
-    # - name: Set up minIo.
-    #   include_tasks: tasks/storage/minio.yml
+    - name: Download vip rbac manifest
+      ansible.builtin.get_url:
+        url: "https://raw.githubusercontent.com/kube-vip/kube-vip/{{ kube_vip_tag_version }}/docs/manifests/rbac.yaml"
+        dest: "/var/lib/rancher/k3s/server/manifests/vip-rbac.yaml"
+        owner: root
+        group: root
+        mode: 0644
 
-    - name: Set up Vault.
-      include_tasks: tasks/storage/vault.yml
+    - name: Copy vip manifest
+      template:
+        src: "vip.yaml.j2"
+        dest: "/var/lib/rancher/k3s/server/manifests/vip.yaml"
+        owner: root
+        group: root
+        mode: 0644
 
-# - name: Configure the control plane.
-#   hosts: control_plane
-#   gather_facts: true
-#   become: true
+    - name: Install K3s on control plane (takes a while).
+      ansible.builtin.shell: >-
+        curl -sfL https://get.k3s.io | sh -s - server \
+        --token={{ k3s_token }} \
+        --write-kubeconfig-mode=644 \
+        --cluster-init \
+        --disable servicelb \
+        --disable traefik \
+        --disable local-storage \
+        --flannel-iface={{ flannel_iface }}
+        --node-ip={{ ansible_facts[flannel_iface]["ipv4"]["address"] }}
+        {% if apiserver_endpoint is defined %}
+        --tls-san {{ apiserver_endpoint }} \
+        {% endif %}
+        {% if k3s_dns_name is defined %}
+        --tls-san {{ k3s_dns_name }} \
+        {% endif %}
+        {% if k3s_static_ip is defined %}
+        --tls-san {{ k3s_static_ip }} \
+        {% endif %}
+        {% for host in groups['cluster'] %}
+        --tls-san {{ hostvars[host].inventory_hostname }}
+        --tls-san {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
+        --tls-san {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
+        --tls-san {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
+        {% endfor %}   
+      become: true
+      async: 300 # Wait for 5 minutes (300 seconds) for the K3s installation to complete
+      poll: 10 # Check the status of the K3s installation every 10 seconds
+      register: control_plane_install
+      until: control_plane_install.rc == 0
+      retries: 10 # Retry up to 10 times if the installation fails
 
-#   vars_files:
-#     - config.yml
+    - name: Ensure required dependencies are installed.
+      ansible.builtin.package:
+        name:
+          - python3-pip
+          - python3-setuptools
+          - build-essential
+          - golang
+          - git
+        state: present
+      become: true
 
-#   tasks:
-#     - name: Create manifests directory
-#       file:
-#         path: /var/lib/rancher/k3s/server/manifests
-#         state: directory
-#         owner: root
-#         group: root
-#         mode: 0644
+    - name: Ensure required Python libraries are installed.
+      ansible.builtin.pip:
+        name:
+          - openshift
+          - pyyaml
+        state: present
+      become: true
 
-#     - name: Download vip rbac manifest
-#       ansible.builtin.get_url:
-#         url: "https://raw.githubusercontent.com/kube-vip/kube-vip/{{ kube_vip_tag_version }}/docs/manifests/rbac.yaml"
-#         dest: "/var/lib/rancher/k3s/server/manifests/vip-rbac.yaml"
-#         owner: root
-#         group: root
-#         mode: 0644
+- name: Configure the worker nodes.
+  hosts: nodes
+  gather_facts: true
+  become: true
 
-#     - name: Copy vip manifest
-#       template:
-#         src: "vip.yaml.j2"
-#         dest: "/var/lib/rancher/k3s/server/manifests/vip.yaml"
-#         owner: root
-#         group: root
-#         mode: 0644
+  vars_files:
+    - config.yml
 
-#     - name: Install K3s on control plane (takes a while).
-#       ansible.builtin.shell: >-
-#         curl -sfL https://get.k3s.io | sh -s - server \
-#         --token={{ k3s_token }} \
-#         --write-kubeconfig-mode=644 \
-#         --cluster-init \
-#         --disable servicelb \
-#         --disable traefik \
-#         --disable local-storage \
-#         --flannel-iface={{ flannel_iface }}
-#         --node-ip={{ ansible_facts[flannel_iface]["ipv4"]["address"] }}
-#         {% if apiserver_endpoint is defined %}
-#         --tls-san {{ apiserver_endpoint }} \
-#         {% endif %}
-#         {% if k3s_dns_name is defined %}
-#         --tls-san {{ k3s_dns_name }} \
-#         {% endif %}
-#         {% if k3s_static_ip is defined %}
-#         --tls-san {{ k3s_static_ip }} \
-#         {% endif %}
-#         {% for host in groups['cluster'] %}
-#         --tls-san {{ hostvars[host].inventory_hostname }}
-#         --tls-san {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
-#         --tls-san {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
-#         --tls-san {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
-#         {% endfor %}   
-#       become: true
-#       async: 300 # Wait for 5 minutes (300 seconds) for the K3s installation to complete
-#       poll: 10 # Check the status of the K3s installation every 10 seconds
-#       register: control_plane_install
-#       until: control_plane_install.rc == 0
-#       retries: 10 # Retry up to 10 times if the installation fails
+  tasks:
+    - name: Install K3s on nodes (takes a while).
+      ansible.builtin.shell: >-
+        curl -sfL https://get.k3s.io | sh -s - server \
+        --token={{ k3s_token }} \
+        --write-kubeconfig-mode=644 \
+        --server https://{{ apiserver_endpoint }}:6443 \
+        --disable servicelb \
+        --disable traefik \
+        --disable local-storage \
+        --flannel-iface={{ flannel_iface }}
+        --node-ip={{ ansible_facts[flannel_iface]["ipv4"]["address"] }}
+        {% if k3s_dns_name is defined %}
+        --tls-san {{ k3s_dns_name }} \
+        {% endif %}
+        {% if k3s_static_ip is defined %}
+        --tls-san {{ k3s_static_ip }} \
+        {% endif %}
+        {% for host in groups['cluster'] %}
+        --tls-san {{ hostvars[host].inventory_hostname }}
+        --tls-san {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
+        --tls-san {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
+        --tls-san {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
+        {% endfor %}
+      become: true
+      async: 300 # Wait for 5 minutes (300 seconds) for the K3s installation to complete
+      poll: 10 # Check the status of the K3s installation every 10 seconds
+      register: worker_install
+      until: worker_install.rc == 0
+      retries: 10 # Retry up to 10 times if the installation fails
 
-#     - name: Ensure required dependencies are installed.
-#       ansible.builtin.package:
-#         name:
-#           - python3-pip
-#           - python3-setuptools
-#           - build-essential
-#           - golang
-#           - git
-#         state: present
-#       become: true
+- name: Set up Helm.
+  import_playbook: tasks/kubernetes/helm.yml
+  tags: ['helm']
 
-#     - name: Ensure required Python libraries are installed.
-#       ansible.builtin.pip:
-#         name:
-#           - openshift
-#           - pyyaml
-#         state: present
-#       become: true
+- name: Set up NFS PVCs.
+  import_playbook: tasks/kubernetes/nfs.yml
+  tags: ['nfs']
 
-# - name: Configure the worker nodes.
-#   hosts: nodes
-#   gather_facts: true
-#   become: true
+- name: Set up Cert-Manager.
+  import_playbook: tasks/kubernetes/cert-manager.yml
+  tags: ['cert-manager']
 
-#   vars_files:
-#     - config.yml
+- name: Set up External-DNS.
+  import_playbook: tasks/kubernetes/external-dns.yml
+  tags: ['external-dns']
 
-#   tasks:
-#     - name: Install K3s on nodes (takes a while).
-#       ansible.builtin.shell: >-
-#         curl -sfL https://get.k3s.io | sh -s - server \
-#         --token={{ k3s_token }} \
-#         --write-kubeconfig-mode=644 \
-#         --server https://{{ apiserver_endpoint }}:6443 \
-#         --disable servicelb \
-#         --disable traefik \
-#         --disable local-storage \
-#         --flannel-iface={{ flannel_iface }}
-#         --node-ip={{ ansible_facts[flannel_iface]["ipv4"]["address"] }}
-#         {% if k3s_dns_name is defined %}
-#         --tls-san {{ k3s_dns_name }} \
-#         {% endif %}
-#         {% if k3s_static_ip is defined %}
-#         --tls-san {{ k3s_static_ip }} \
-#         {% endif %}
-#         {% for host in groups['cluster'] %}
-#         --tls-san {{ hostvars[host].inventory_hostname }}
-#         --tls-san {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
-#         --tls-san {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
-#         --tls-san {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }}
-#         {% endfor %}
-#       become: true
-#       async: 300 # Wait for 5 minutes (300 seconds) for the K3s installation to complete
-#       poll: 10 # Check the status of the K3s installation every 10 seconds
-#       register: worker_install
-#       until: worker_install.rc == 0
-#       retries: 10 # Retry up to 10 times if the installation fails
+- name: Set up Metallb.
+  import_playbook: tasks/kubernetes/metallb.yml
+  tags: ['metallb']
 
-# - name: Set up Helm.
-#   import_playbook: tasks/kubernetes/helm.yml
-#   tags: ['helm']
+- name: Set up Traefik.
+  import_playbook: tasks/kubernetes/traefik.yml
+  tags: ['traefik']
 
-# - name: Set up NFS PVCs.
-#   import_playbook: tasks/kubernetes/nfs.yml
-#   tags: ['nfs']
+- name: Set up Ingress-Nginx.
+  import_playbook: tasks/kubernetes/ingress-nginx.yml
+  tags: ['ingress-nginx']
 
-# - name: Set up Cert-Manager.
-#   import_playbook: tasks/kubernetes/cert-manager.yml
-#   tags: ['cert-manager']
+- name: Set up Cloudflare-Tunnel-Ingress.
+  import_playbook: tasks/kubernetes/cloudflare-tunnel-ingress.yml
+  tags: ['cloudflare-tunnel-ingress']
 
-# - name: Set up External-DNS.
-#   import_playbook: tasks/kubernetes/external-dns.yml
-#   tags: ['external-dns']
+- name: Set up ArgoCD.
+  import_playbook: tasks/kubernetes/argocd.yml
+  tags: ['argocd']
 
-# - name: Set up Metallb.
-#   import_playbook: tasks/kubernetes/metallb.yml
-#   tags: ['metallb']
+- name: Set up Rancher.
+  import_playbook: tasks/kubernetes/rancher.yml
+  tags: ['rancher']
 
-# - name: Set up Traefik.
-#   import_playbook: tasks/kubernetes/traefik.yml
-#   tags: ['traefik']
-
-# - name: Set up Ingress-Nginx.
-#   import_playbook: tasks/kubernetes/ingress-nginx.yml
-#   tags: ['ingress-nginx']
-
-# - name: Set up Cloudflare-Tunnel-Ingress.
-#   import_playbook: tasks/kubernetes/cloudflare-tunnel-ingress.yml
-#   tags: ['cloudflare-tunnel-ingress']
-
-# - name: Set up ArgoCD.
-#   import_playbook: tasks/kubernetes/argocd.yml
-#   tags: ['argocd']
-
-# - name: Set up Rancher.
-#   import_playbook: tasks/kubernetes/rancher.yml
-#   tags: ['rancher']
-
-# - name: Set up Prometheus.
-#   import_playbook: tasks/kubernetes/prometheus.yml
-#   tags: ['prometheus']
+- name: Set up Prometheus.
+  import_playbook: tasks/kubernetes/prometheus.yml
+  tags: ['prometheus']
 
 

@@ -274,12 +274,12 @@
   ansible.builtin.systemd:
     daemon_reload: yes
 
-- name: Enable Vault service
+- name: Enable vault-unseal service
   ansible.builtin.systemd:
     name: vault-unseal
     enabled: yes
 
-- name: Start Vault service
+- name: Start vault-unseal service
   ansible.builtin.systemd:
     name: vault-unseal
     state: started

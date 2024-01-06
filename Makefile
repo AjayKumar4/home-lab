@@ -26,3 +26,9 @@ restart:
 
 upgrade:
 	$(ANSIBLE) ./misc/upgrade.yml -i ./inventory/home-lab/hosts.ini
+
+vault:
+	$(ANSIBLE) ./k3s/vault.yml -i ./k3s/hosts.ini
+
+minio:
+	$(ANSIBLE) ./k3s/minio.yml -i ./k3s/hosts.ini

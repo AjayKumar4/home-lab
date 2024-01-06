@@ -1,0 +1,21 @@
+---
+- name: Stop Minio
+  ansible.builtin.service:
+    name: minio
+    state: stopped
+    enabled: no
+  ignore_errors: true
+
+- name: Remove Minio configuration files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+    owner: root
+    group: root
+  ignore_errors: true
+  with_items:
+    - /etc/minio
+    - /{{ storage_zfs_pool_name }}/{{ storage_nfs_share_name }}/minio
+    - /usr/local/bin/minio
+    - /usr/local/bin/mc
+    - /etc/systemd/system/minio.service

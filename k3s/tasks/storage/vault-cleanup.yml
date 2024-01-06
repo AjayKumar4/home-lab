@@ -1,0 +1,29 @@
+---
+- name: Stop Vault
+  ansible.builtin.service:
+    name: vault
+    state: stopped
+    enabled: no
+  ignore_errors: true
+
+- name: Stop Vault Unseal
+  ansible.builtin.service:
+    name: vault-unseal
+    state: stopped
+    enabled: no
+  ignore_errors: true
+
+- name: Remove Vault configuration files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+    owner: root
+    group: root
+  ignore_errors: true
+  with_items:
+    - /etc/vault
+    - /{{ storage_zfs_pool_name }}/{{ storage_nfs_share_name }}/vault
+    - /var/log/vault
+    - /etc/systemd/system/vault.service
+    - /usr/local/bin/vault
+    - /etc/systemd/system/vault-unseal.service
