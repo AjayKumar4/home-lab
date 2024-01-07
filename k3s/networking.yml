@@ -1,4 +1,3 @@
-- name: Set up tailscale configuration.
-  import_playbook: tasks/networking/tailscale.yml
+
 - name: Set up static networking configuration.
   import_playbook: tasks/networking/static-networking.yml

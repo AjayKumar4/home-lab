@@ -4,12 +4,12 @@
   gather_facts: false
   become: true
 
-  handlers:
-    - name: apply netplan
-      ansible.builtin.command: netplan apply
+  # handlers:
+  #   - name: apply netplan
+  #     ansible.builtin.command: netplan apply
 
   vars_files:
-    - ../../config.yml
+    - ../../../config.yml
 
   tasks:
     # - name: Install netplan.io package
@@ -63,32 +63,32 @@
     #     mode: '0644'
     #   notify: apply netplan
 
-    - name: Delete /etc/hosts file
-      ansible.builtin.file:
-        path: /etc/hosts
-        state: absent
+    # - name: Delete /etc/hosts file
+    #   ansible.builtin.file:
+    #     path: /etc/hosts
+    #     state: absent
 
-    - name: Create /etc/hosts file
-      ansible.builtin.file:
-        path: /etc/hosts
-        state: touch
-        owner: root
-        group: root
-        mode: '0664'
+    # - name: Create /etc/hosts file
+    #   ansible.builtin.file:
+    #     path: /etc/hosts
+    #     state: touch
+    #     owner: root
+    #     group: root
+    #     mode: '0664'
 
-    - name: Update /etc/hosts file
-      ansible.builtin.blockinfile:
-        dest: /etc/hosts
-        content: |
-          127.0.0.1	localhost
-          127.0.1.1	{{inventory_hostname}}
+    # - name: Update /etc/hosts file
+    #   ansible.builtin.blockinfile:
+    #     dest: /etc/hosts
+    #     content: |
+    #       127.0.0.1	localhost
+    #       127.0.1.1	{{inventory_hostname}}
 
-          # The following lines are desirable for IPv6 capable hosts
-          ::1     ip6-localhost ip6-loopback
-          fe00::0 ip6-localnet
-          ff00::0 ip6-mcastprefix
-          ff02::1 ip6-allnodes
-          ff02::2 ip6-allrouters
+    #       # The following lines are desirable for IPv6 capable hosts
+    #       ::1     ip6-localhost ip6-loopback
+    #       fe00::0 ip6-localnet
+    #       ff00::0 ip6-mcastprefix
+    #       ff02::1 ip6-allnodes
+    #       ff02::2 ip6-allrouters
 
     - name: Update /etc/hosts file
       ansible.builtin.blockinfile:
@@ -98,6 +98,5 @@
           {% for host in groups['all'] %}
           {{ network.eth0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
           {{ network.wlan0.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
-          {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
           {% endfor %}
             

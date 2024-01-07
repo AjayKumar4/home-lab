@@ -1,9 +1,12 @@
 ---
-- name: Install Tailscale 
-  hosts: all
+- name: Set up Tailscale configuration.
+  hosts: cluster
+  gather_facts: true
   become: true
-  gather_facts: yes
+
+  vars_files:
+    - ../config.yml
+
   tasks:
-    - name: Include Tailscale role
-      include_role:
-        name: tailscale
+    - name: Set up Tailscale.
+      include_tasks: tasks/tailscale.yml

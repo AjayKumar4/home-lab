@@ -5,13 +5,13 @@
   become: true
 
   vars_files:
-    - config.yml
+    - ../config.yml
 
   tasks:
     - name: Set up Minio.
       block:
         - name: Set up and configure Minio
-          include_tasks: tasks/storage/minio.yml
+          include_tasks: tasks/minio.yml
       rescue:
         - name: cleanup Minio
-          include_tasks: tasks/storage/minio-cleanup.yml
+          include_tasks: tasks/minio-cleanup.yml

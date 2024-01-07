@@ -11,7 +11,7 @@
         state: restarted
 
   vars_files:
-    - config.yml
+    - ../config.yml
 
   tasks:
     - name: Set up storage.
@@ -23,7 +23,7 @@
   become: true
 
   vars_files:
-    - config.yml
+    - ../config.yml
 
   tasks:
     - name: Create manifests directory
@@ -108,7 +108,7 @@
   become: true
 
   vars_files:
-    - config.yml
+    - ../config.yml
 
   tasks:
     - name: Install K3s on nodes (takes a while).
@@ -161,25 +161,25 @@
   import_playbook: tasks/kubernetes/metallb.yml
   tags: ['metallb']
 
-- name: Set up Traefik.
-  import_playbook: tasks/kubernetes/traefik.yml
-  tags: ['traefik']
+# - name: Set up Traefik.
+#   import_playbook: tasks/kubernetes/traefik.yml
+#   tags: ['traefik']
 
 - name: Set up Ingress-Nginx.
   import_playbook: tasks/kubernetes/ingress-nginx.yml
   tags: ['ingress-nginx']
 
-- name: Set up Cloudflare-Tunnel-Ingress.
-  import_playbook: tasks/kubernetes/cloudflare-tunnel-ingress.yml
-  tags: ['cloudflare-tunnel-ingress']
+# - name: Set up Cloudflare-Tunnel-Ingress.
+#   import_playbook: tasks/kubernetes/cloudflare-tunnel-ingress.yml
+#   tags: ['cloudflare-tunnel-ingress']
 
 - name: Set up ArgoCD.
   import_playbook: tasks/kubernetes/argocd.yml
   tags: ['argocd']
 
-- name: Set up Rancher.
-  import_playbook: tasks/kubernetes/rancher.yml
-  tags: ['rancher']
+# - name: Set up Rancher.
+#   import_playbook: tasks/kubernetes/rancher.yml
+#   tags: ['rancher']
 
 - name: Set up Prometheus.
   import_playbook: tasks/kubernetes/prometheus.yml

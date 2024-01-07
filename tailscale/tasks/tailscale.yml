@@ -1,0 +1,27 @@
+---
+- name: Download Tailscale installation script
+  ansible.builtin.get_url:
+    url: https://tailscale.com/install.sh
+    dest: /tmp/tailscale.sh
+    mode: 0755
+
+- name: Install Tailscale
+  ansible.builtin.shell: /tmp/tailscale.sh
+
+- name: Set custom Tailscale IP address
+  ansible.builtin.shell: "tailscale up --authkey {{ tailscale_authkey }} --hostname {{ inventory_hostname }} --advertise-routes={{ network.eth0.ipv4_subnet_prefix }}.0/24,{{ network.wlan0.ipv4_subnet_prefix }}.0/24 --accept-dns=false"
+
+- name: Delete Tailscale installation script
+  ansible.builtin.file:
+    path: /tmp/tailscale.sh
+    state: absent
+
+- name: Update /etc/hosts file
+  ansible.builtin.blockinfile:
+    dest: /etc/hosts
+    marker: "# ANSIBLE MANAGED - tailscale ip config {mark}"
+    content: |
+      {% for host in groups['all'] %}
+      {{ network.tailscale.ipv4_subnet_prefix }}.{{ hostvars[host]['ip_host_octet'] }} {{ hostvars[host].inventory_hostname }} {{ hostvars[host].inventory_hostname }}.local
+      {% endfor %}
+    

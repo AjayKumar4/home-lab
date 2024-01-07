@@ -3,11 +3,17 @@ SHELL :=/bin/bash
 ANSIBLE := $(shell command -v ansible-playbook 2>/dev/null || echo "ansible-playbook package is missing")
 ANSIBLE_GALAXY := $(shell command -v ansible-galaxy 2>/dev/null || echo "ansible-galaxy package is missing")
 
-.PHONY: prerequisite microk8s tailscale restart upgrade k3s k3s-networking
+.PHONY: prerequisite microk8s tailscale restart upgrade k3s k3s-networking vault minio
 .DEFAULT_GOAL := all
 
 tailscale: 
-	$(ANSIBLE) ./tailscale/main.yml -i ./inventory/home-lab/hosts.ini
+	$(ANSIBLE) ./tailscale/main.yml -i ./hosts.ini
+	
+vault:
+	$(ANSIBLE) ./vault/main.yml -i ./hosts.ini
+
+minio:
+	$(ANSIBLE) ./minio/main.yml -i ./hosts.ini
 
 microk8s: 
 	$(ANSIBLE) ./tailscale/main.yml -i ./inventory/home-lab/hosts.ini
@@ -27,8 +33,3 @@ restart:
 upgrade:
 	$(ANSIBLE) ./misc/upgrade.yml -i ./inventory/home-lab/hosts.ini
 
-vault:
-	$(ANSIBLE) ./k3s/vault.yml -i ./k3s/hosts.ini
-
-minio:
-	$(ANSIBLE) ./k3s/minio.yml -i ./k3s/hosts.ini

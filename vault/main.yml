@@ -5,13 +5,13 @@
   become: true
 
   vars_files:
-    - config.yml
+    - ../config.yml
 
   tasks:
     - name: Set up Vault.
       block:
         - name: Set up and configure Vault
-          include_tasks: tasks/storage/vault.yml
+          include_tasks: tasks/vault.yml
       rescue:
         - name: cleanup vault
-          include_tasks: tasks/storage/vault-cleanup.yml
+          include_tasks: tasks/vault-cleanup.yml
